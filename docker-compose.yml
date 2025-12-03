@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # 1. Наша база данных (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cbt_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Наша быстрая память (Redis)
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+# Место, где физически будут лежать файлы базы данных
+volumes:
+  postgres_data:
