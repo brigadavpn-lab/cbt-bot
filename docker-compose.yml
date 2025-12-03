@@ -1,3 +1,4 @@
+# Обновление для сервера
 version: '3.8'
 
 services:
@@ -9,7 +10,6 @@ services:
     depends_on:
       - db
       - redis
-    # ЗАПУСКАЕМ ЧЕРЕЗ НОВЫЙ ФАЙЛ (POLLING):
     command: >
       sh -c "poetry run alembic upgrade head &&
              poetry run python app/run_polling.py"
