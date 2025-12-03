@@ -1,6 +1,3 @@
-# Обновление для сервера
-version: '3.8'
-
 services:
   # --- НАШ БОТ ---
   bot:
@@ -10,9 +7,8 @@ services:
     depends_on:
       - db
       - redis
-    command: >
-      sh -c "poetry run alembic upgrade head &&
-             poetry run python -m app.run_polling
+    # ОДНА СТРОКА - САМЫЙ НАДЕЖНЫЙ ВАРИАНТ:
+    command: sh -c "poetry run alembic upgrade head && poetry run python -m app.run_polling"
 
   # --- БАЗА ДАННЫХ ---
   db:
