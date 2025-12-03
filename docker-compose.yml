@@ -12,7 +12,7 @@ services:
       - redis
     command: >
       sh -c "poetry run alembic upgrade head &&
-             poetry run python app/run_polling.py"
+             poetry run python -m app.run_polling
 
   # --- БАЗА ДАННЫХ ---
   db:
