@@ -18,6 +18,7 @@ class User(Base):
     level = Column(Integer, default=1)       # Уровень
     xp = Column(Integer, default=0)          # Опыт
     streak = Column(Integer, default=0)      # Серия побед без ошибок
+    max_streak = Column(Integer, default=0)  # рекорд в сериях
     
     created_at = Column(DateTime(timezone=True), server_default=func.now()) # Дата регистрации
 
