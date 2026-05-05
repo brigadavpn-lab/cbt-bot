@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><!-- TODO: Имя Фамилия --> — клинический психолог</title>
+  <meta name="description" content="Клинический психолог, КПТ-подход. Работаю с тревогой, депрессией, выгоранием." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ─── NAV ─────────────────────────────────────────────────────────────── -->
+  <nav class="nav" id="nav">
+    <div class="nav__inner container">
+      <a href="#hero" class="nav__logo"><!-- TODO: инициалы, напр. АС --></a>
+
+      <ul class="nav__links" id="navLinks">
+        <li><a href="#about">Обо мне</a></li>
+        <li><a href="#approach">Работа</a></li>
+        <li><a href="#media">СМИ</a></li>
+        <li><a href="#booking">Запись</a></li>
+      </ul>
+
+      <div class="nav__controls">
+        <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">
+          <!-- sun icon -->
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <!-- moon icon -->
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button class="burger" id="burger" aria-label="Меню" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─────────────────────────────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="hero__inner container">
+      <div class="hero__text">
+        <p class="hero__pre">Клинический психолог</p>
+        <!-- TODO: вставьте своё имя -->
+        <h1 class="hero__name">Имя Фамилия</h1>
+        <!-- TODO: краткий лид — 1–2 предложения о вас -->
+        <p class="hero__lead">
+          Помогаю справляться с тревогой, депрессией и выгоранием.<br>
+          Работаю в доказательном подходе&nbsp;— когнитивно-поведенческая терапия.
+        </p>
+        <a href="#booking" class="btn btn--primary">Записаться на консультацию</a>
+      </div>
+      <div class="hero__photo">
+        <!-- TODO: замените src на путь к своей фотографии -->
+        <div class="photo-placeholder" role="img" aria-label="Фото психолога">
+          <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="30" r="14" stroke="currentColor" stroke-width="2"/>
+            <path d="M10 70c0-16.569 13.431-30 30-30s30 13.431 30 30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── ABOUT ─────────────────────────────────────────────────────────────── -->
+  <section class="section" id="about">
+    <div class="container">
+      <h2 class="section__title animate-on-scroll">Обо мне</h2>
+      <div class="about__grid">
+        <div class="about__text animate-on-scroll">
+          <!-- TODO: расскажите о себе — образование, опыт, специализация -->
+          <p>
+            Клинический психолог с опытом более 5 лет. Специализируюсь на работе
+            с тревожными расстройствами, паническими атаками, депрессивными
+            состояниями и синдромом эмоционального выгорания.
+          </p>
+          <p>
+            Окончила факультет психологии МГУ им. М.В. Ломоносова, прошла
+            дополнительную подготовку по КПТ в&nbsp;<!-- TODO: укажите место обучения -->.
+          </p>
+          <p>
+            Работаю очно и онлайн. Провожу индивидуальные консультации для
+            взрослых.
+          </p>
+        </div>
+        <ul class="about__tags animate-on-scroll">
+          <!-- TODO: отредактируйте список специализаций -->
+          <li class="tag">Тревожные расстройства</li>
+          <li class="tag">Панические атаки</li>
+          <li class="tag">Депрессия</li>
+          <li class="tag">Выгорание</li>
+          <li class="tag">ОКР</li>
+          <li class="tag">Фобии</li>
+          <li class="tag">Психосоматика</li>
+          <li class="tag">Самооценка</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── APPROACH ─────────────────────────────────────────────────────────── -->
+  <section class="section section--alt" id="approach">
+    <div class="container">
+      <h2 class="section__title animate-on-scroll">Как проходит работа</h2>
+      <p class="section__sub animate-on-scroll">
+        Работаю в подходе <strong>когнитивно-поведенческой терапии (КПТ)</strong>&nbsp;—
+        одного из наиболее изученных и эффективных методов современной психотерапии.
+      </p>
+      <div class="cards">
+        <div class="card animate-on-scroll" style="--delay: 0ms">
+          <div class="card__num">01</div>
+          <h3 class="card__title">Первая сессия</h3>
+          <!-- TODO: опишите, что происходит на первой встрече -->
+          <p class="card__text">
+            Знакомство, сбор запроса и истории. Вместе определяем цели работы
+            и обсуждаем, как КПТ поможет именно в вашей ситуации.
+          </p>
+        </div>
+        <div class="card animate-on-scroll" style="--delay: 100ms">
+          <div class="card__num">02</div>
+          <h3 class="card__title">Регулярная работа</h3>
+          <!-- TODO: опишите процесс терапии -->
+          <p class="card__text">
+            Сессии раз в неделю по 50 минут. Между встречами — небольшие
+            практические задания для закрепления навыков.
+          </p>
+        </div>
+        <div class="card animate-on-scroll" style="--delay: 200ms">
+          <div class="card__num">03</div>
+          <h3 class="card__title">Результат</h3>
+          <!-- TODO: опишите ожидаемые результаты -->
+          <p class="card__text">
+            Конкретные инструменты для управления мыслями и эмоциями, снижение
+            симптомов и устойчивые изменения в качестве жизни.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MEDIA ─────────────────────────────────────────────────────────────── -->
+  <section class="section" id="media">
+    <div class="container">
+      <h2 class="section__title animate-on-scroll">СМИ</h2>
+
+      <h3 class="media__sub animate-on-scroll">Статьи и публикации</h3>
+      <div class="media__articles">
+        <!-- TODO: замените плейсхолдеры реальными статьями -->
+        <a class="media-card animate-on-scroll" href="#" target="_blank" rel="noopener">
+          <div class="media-card__source">Издание <!-- TODO --></div>
+          <div class="media-card__title">Заголовок статьи — как справиться с тревогой</div>
+          <svg class="media-card__arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 8h10M9 4l4 4-4 4"/>
+          </svg>
+        </a>
+        <a class="media-card animate-on-scroll" href="#" target="_blank" rel="noopener">
+          <div class="media-card__source">Издание <!-- TODO --></div>
+          <div class="media-card__title">Заголовок статьи — что такое КПТ и кому подходит</div>
+          <svg class="media-card__arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 8h10M9 4l4 4-4 4"/>
+          </svg>
+        </a>
+      </div>
+
+      <h3 class="media__sub animate-on-scroll">Видео</h3>
+      <div class="media__videos">
+        <!-- TODO: замените src на реальную ссылку YouTube embed -->
+        <div class="video-wrap animate-on-scroll">
+          <iframe
+            src="https://www.youtube.com/embed/TODO_VIDEO_ID"
+            title="Видео — TODO: заголовок"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            loading="lazy"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── BOOKING ───────────────────────────────────────────────────────────── -->
+  <section class="section section--alt booking" id="booking">
+    <div class="container booking__inner animate-on-scroll">
+      <h2 class="booking__title">Готовы начать?</h2>
+      <p class="booking__text">
+        Запись на консультацию через страницу клиники.<br>
+        Первичная консультация длится 50 минут.
+      </p>
+      <!-- TODO: замените href на реальную ссылку на страницу записи в клинике -->
+      <a class="btn btn--primary" href="#" target="_blank" rel="noopener">
+        Записаться на консультацию
+      </a>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ────────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__social">
+        <!-- TODO: замените href на ваши ссылки -->
+        <a class="social-link" href="https://t.me/TODO_USERNAME" target="_blank" rel="noopener" aria-label="Telegram">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.41 13.992 4.46 13.1c-.658-.204-.672-.658.136-.975l11.57-4.461c.548-.196 1.027.12.728.557z"/>
+          </svg>
+        </a>
+        <a class="social-link" href="https://vk.com/TODO_USERNAME" target="_blank" rel="noopener" aria-label="ВКонтакте">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12.785 16.241s.288-.032.436-.194c.136-.148.132-.427.132-.427s-.02-1.304.585-1.498c.597-.19 1.364 1.26 2.178 1.817.615.422 1.08.33 1.08.33l2.17-.03s1.135-.07.597-1.004c-.044-.073-.314-.661-1.614-1.868-1.362-1.26-1.178-1.057.46-3.238.998-1.329 1.396-2.142 1.271-2.49-.12-.332-.854-.244-.854-.244l-2.44.015s-.181-.025-.315.056c-.132.079-.217.262-.217.262s-.386 1.025-.9 1.898c-1.086 1.844-1.52 1.94-1.698 1.826-.412-.267-.309-1.075-.309-1.648 0-1.793.272-2.54-.529-2.733-.266-.064-.461-.106-1.139-.113-.871-.009-1.609.003-2.025.207-.277.136-.491.439-.361.456.161.022.526.098.72.36.25.34.24 1.104.24 1.104s.144 2.112-.333 2.373c-.327.179-.775-.186-1.737-1.857-.494-.855-.867-1.8-.867-1.8s-.071-.177-.202-.272c-.157-.115-.376-.151-.376-.151l-2.318.015s-.347.01-.474.16C3.566 8.93 3.66 9.24 3.66 9.24S5.34 13.145 7.24 15.114c1.748 1.81 3.733 1.69 3.733 1.69l.955-.01.857-.012z"/>
+          </svg>
+        </a>
+      </div>
+      <p class="footer__copy">
+        <!-- TODO: замените на своё имя -->
+        &copy; <span id="year"></span> Имя Фамилия
+      </p>
+      <a class="footer__top" href="#hero" aria-label="Наверх">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15"/>
+        </svg>
+      </a>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
