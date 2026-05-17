@@ -32,8 +32,8 @@ async def start_test_handler(callback: types.CallbackQuery, state: FSMContext):
     # Запоминаем начальные данные
     await state.update_data(task_ids=task_ids, current_index=0, correct_count=0)
 
-    # Показываем первый вопрос
-    await show_next_question(callback.message, state, session)
+    # Показываем первый вопрос (сессия выше уже закрыта — открываем новую внутри)
+    await show_next_question(callback.message, state, None)
     await callback.answer()
 
 # --- 2. ФУНКЦИЯ ПОКАЗА ВОПРОСА ---
@@ -76,7 +76,7 @@ async def show_next_question(message: types.Message, state: FSMContext, session)
 
     try:
         await message.edit_text(text, reply_markup=builder.as_markup())
-    except:
+    except Exception:
         await message.answer(text, reply_markup=builder.as_markup())
 
 # --- 3. ОБРАБОТКА ОТВЕТА ---

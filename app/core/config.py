@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     
     # Ключ Gemini может быть пустым (None), если мы его еще не получили
     GEMINI_API_KEY: str | None = None
+
+    # --- Claude (Anthropic) ---
+    ANTHROPIC_API_KEY: str | None = None
+    CLAUDE_MODEL: str = "claude-sonnet-4-6"
+    CLAUDE_MAX_TOKENS: int = 1024
     
     # Секретный токен для защиты вебхука
     SECRET_TOKEN: str = "my-secret-token"

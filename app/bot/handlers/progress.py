@@ -40,23 +40,3 @@ async def my_progress_handler(callback: types.CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
-
-# Обработчик кнопки "Назад" (просто возвращает текст приветствия)
-@router.callback_query(F.data == "back_to_menu")
-async def back_to_menu_handler(callback: types.CallbackQuery):
-    # Копируем кнопки из стартового меню (чтобы не дублировать код, можно вынести отдельно, но пока так)
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🏋️ Тренировка", callback_data="start_training")
-    builder.button(text="📝 Тест (10 вопросов)", callback_data="start_test")
-    builder.button(text="🧠 Своя ситуация", callback_data="my_situation")
-    builder.button(text="📈 Мой прогресс", callback_data="my_progress")
-    builder.adjust(1)
-
-    text = (
-        f"Привет, <b>{callback.from_user.full_name}</b>! 👋\n\n"
-        "Я — твой карманный психолог.\n"
-        "Выбери действие:"
-    )
-    
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
-    await callback.answer()

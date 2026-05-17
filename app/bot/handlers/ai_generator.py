@@ -1,4 +1,5 @@
 import json
+import logging
 import google.generativeai as genai
 from aiogram import Router, F, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -7,6 +8,7 @@ from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 # Настраиваем модель
@@ -124,5 +126,13 @@ async def generate_task_handler(callback: types.CallbackQuery):
 
         await callback.message.edit_text(msg_text, reply_markup=builder.as_markup())
 
-    except Exception as e:
-        await callback.message.edit_text(f"⚠️ Ошибка генерации: {e}")
+    except Exception:
+        logger.exception("AI task generation failed")
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔄 Попробовать ещё раз", callback_data="generate_new_task")
+        builder.button(text="🔙 В меню", callback_data="back_to_menu")
+        builder.adjust(1)
+        await callback.message.edit_text(
+            "⚠️ Не удалось сгенерировать задачу. Попробуйте ещё раз через минуту.",
+            reply_markup=builder.as_markup(),
+        )

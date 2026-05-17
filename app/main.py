@@ -1,6 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from aiogram import Bot, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -52,16 +52,16 @@ async def telegram_webhook(request: Request):
     # Проверка "пароля" от Телеграма (защита от хакеров)
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
     if secret != settings.SECRET_TOKEN:
-        return status.HTTP_401_UNAUTHORIZED
+        return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
     # Обработка сообщения
     data = await request.json()
     try:
         update = types.Update.model_validate(data, context={"bot": bot})
         await dp.feed_update(bot, update)
-    except Exception as e:
-        logger.error(f"Error processing update: {e}")
-    
+    except Exception:
+        logger.exception("Error processing update")
+
     return {"status": "ok"}
 
 # Простая проверка, жив ли сервер
