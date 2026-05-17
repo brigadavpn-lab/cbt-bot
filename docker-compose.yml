@@ -1,30 +1,38 @@
 services:
-  # --- НАШ БОТ ---
   bot:
     build: .
     restart: always
     env_file: .env
     depends_on:
-      - db
-      - redis
-    # ОДНА СТРОКА - САМЫЙ НАДЕЖНЫЙ ВАРИАНТ:
-    command: sh -c "poetry run alembic upgrade head && poetry run python -m app.run_polling"
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && python -m app.run_polling"
 
-  # --- БАЗА ДАННЫХ ---
   db:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: cbt_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-cbt_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-cbt_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # --- КЭШ ---
   redis:
     image: redis:7-alpine
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres_data:

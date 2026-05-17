@@ -24,45 +24,42 @@ bot = Bot(
 # Функция жизненного цикла: Что делать при включении/выключении
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- СТАРТ ---
-    # Если указан WEBHOOK_URL, говорим Телеграму слать сообщения туда
     if settings.WEBHOOK_URL:
         webhook_endpoint = f"{settings.WEBHOOK_URL}/webhook"
-        logger.info(f"Setting webhook to {webhook_endpoint}")
+        logger.info("Setting webhook to %s", webhook_endpoint)
         await bot.set_webhook(
             url=webhook_endpoint,
             secret_token=settings.SECRET_TOKEN,
-            drop_pending_updates=True
+            drop_pending_updates=True,
         )
-    
-    yield # Тут бот работает...
-    
-    # --- СТОП ---
-    # При выключении удаляем вебхук
+    else:
+        logger.info("WEBHOOK_URL is empty; FastAPI app runs without /webhook endpoint")
+
+    yield
+
     if settings.WEBHOOK_URL:
         await bot.delete_webhook()
     await bot.session.close()
 
-# Создаем приложение FastAPI
+
 app = FastAPI(lifespan=lifespan)
 
-# Адрес, куда стучится Телеграм
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    # Проверка "пароля" от Телеграма (защита от хакеров)
-    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    if secret != settings.SECRET_TOKEN:
-        return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    # Обработка сообщения
-    data = await request.json()
-    try:
-        update = types.Update.model_validate(data, context={"bot": bot})
-        await dp.feed_update(bot, update)
-    except Exception:
-        logger.exception("Error processing update")
+if settings.WEBHOOK_URL:
+    @app.post("/webhook")
+    async def telegram_webhook(request: Request):
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if secret != settings.SECRET_TOKEN:
+            return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    return {"status": "ok"}
+        data = await request.json()
+        try:
+            update = types.Update.model_validate(data, context={"bot": bot})
+            await dp.feed_update(bot, update)
+        except Exception:
+            logger.exception("Error processing update")
+
+        return {"status": "ok"}
 
 # Простая проверка, жив ли сервер
 @app.get("/health")

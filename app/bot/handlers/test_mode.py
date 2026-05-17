@@ -25,12 +25,18 @@ async def start_test_handler(callback: types.CallbackQuery, state: FSMContext):
 
     # Сохраняем ID задач в память бота (чтобы не потерять их в процессе теста)
     task_ids = [t.id for t in tasks]
-    
+
     # Включаем состояние "В процессе теста"
     await state.set_state(TestState.in_progress)
-    
-    # Запоминаем начальные данные
-    await state.update_data(task_ids=task_ids, current_index=0, correct_count=0)
+
+    # Запоминаем начальные данные (tg_id нужен для начисления XP на финише —
+    # message.chat.id в групповых чатах не равен user_id)
+    await state.update_data(
+        task_ids=task_ids,
+        current_index=0,
+        correct_count=0,
+        tg_id=callback.from_user.id,
+    )
 
     # Показываем первый вопрос (сессия выше уже закрыта — открываем новую внутри)
     await show_next_question(callback.message, state, None)
@@ -117,21 +123,21 @@ async def finish_test(message: types.Message, state: FSMContext):
     data = await state.get_data()
     correct = data['correct_count']
     total = len(data['task_ids'])
-    
+    tg_id = data.get('tg_id')
+
     # Очищаем состояние (выходим из режима теста)
     await state.clear()
-    
+
     # Начисляем опыт (50 за прохождение + 10 за каждый верный)
     total_xp = 50 + (correct * 10)
-    
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User).where(User.tg_id == message.chat.id))
-        user = result.scalar_one_or_none()
-        if user:
-            user.xp += total_xp
-            # Увеличиваем счетчик завершенных серий, если нужно
-            # user.streak += ... (тут сложнее, пока просто XP)
-            await session.commit()
+
+    if tg_id is not None:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.tg_id == tg_id))
+            user = result.scalar_one_or_none()
+            if user:
+                user.xp += total_xp
+                await session.commit()
 
     # Оценка результата
     percent = (correct / total) * 100

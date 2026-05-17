@@ -2,7 +2,11 @@ import logging
 from anthropic import AsyncAnthropic
 
 from app.core.config import settings
-from app.services.prompts import CBT_SYSTEM_PROMPT
+from app.services.prompts import (
+    CBT_SYSTEM_PROMPT,
+    TASK_GENERATOR_SYSTEM_PROMPT,
+    DISTORTIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,3 +40,64 @@ async def analyze_situation(user_text: str) -> str:
 
     parts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
     return "\n".join(parts).strip()
+
+
+_TASK_TOOL = {
+    "name": "return_cbt_task",
+    "description": "Возвращает один учебный кейс по КПТ строго в заданной структуре.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "situation": {"type": "string", "description": "Текст ситуации, 2-4 предложения."},
+            "thought": {"type": "string", "description": "Автоматическая мысль, эмоциональная."},
+            "correct_cognitive_distortion": {
+                "type": "string",
+                "enum": DISTORTIONS,
+            },
+            "options": {
+                "type": "array",
+                "items": {"type": "string", "enum": DISTORTIONS},
+                "minItems": 3,
+                "maxItems": 3,
+            },
+            "explanation": {"type": "string"},
+        },
+        "required": [
+            "situation",
+            "thought",
+            "correct_cognitive_distortion",
+            "options",
+            "explanation",
+        ],
+    },
+}
+
+
+async def generate_task() -> dict:
+    client = get_client()
+    if client is None:
+        raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+
+    message = await client.messages.create(
+        model=settings.CLAUDE_MODEL,
+        max_tokens=settings.CLAUDE_MAX_TOKENS,
+        system=[
+            {
+                "type": "text",
+                "text": TASK_GENERATOR_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        tools=[_TASK_TOOL],
+        tool_choice={"type": "tool", "name": "return_cbt_task"},
+        messages=[{"role": "user", "content": "Сгенерируй один кейс."}],
+    )
+
+    for block in message.content:
+        if getattr(block, "type", None) == "tool_use" and block.name == "return_cbt_task":
+            data = dict(block.input)
+            if data["correct_cognitive_distortion"] not in data["options"]:
+                raise ValueError("correct answer is not present in options")
+            return data
+
+    raise ValueError("Claude did not return a tool_use block")

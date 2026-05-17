@@ -77,9 +77,10 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
     # Узнаем, в каком режиме пользователь
     current_state = await state.get_state()
     
-    if current_state == GenState.active:
+    if current_state == GenState.active.state:
         # Режим Генератора
         builder.button(text="🎲 Сгенерировать еще", callback_data="generate_new_task")
+        await state.clear()
     else:
         # Режим Тренировки (обычный)
         builder.button(text="➡️ Следующая задача", callback_data="start_training")
