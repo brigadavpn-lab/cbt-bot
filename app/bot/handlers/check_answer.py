@@ -1,93 +1,79 @@
-from aiogram import Router, F, types
+from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import AsyncSessionLocal
-from app.db.models import Task, User, Attempt
 from app.bot.states import GenState
+from app.db.models import Attempt, Task, User
 
 router = Router()
 
+XP_PER_CORRECT = 10
+XP_PER_LEVEL = 100
+
+
+def _level_for_xp(xp: int) -> int:
+    return xp // XP_PER_LEVEL + 1
+
+
 @router.callback_query(F.data.startswith("answer:"))
-async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
-    # Разбираем данные кнопки: "answer:ID_ЗАДАЧИ:НОМЕР_ОТВЕТА"
+async def answer_handler(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+):
     _, task_id_str, option_index_str = callback.data.split(":")
     task_id = int(task_id_str)
     option_index = int(option_index_str)
 
-    async with AsyncSessionLocal() as session:
-        # 1. Ищем задачу
-        task = await session.get(Task, task_id)
-        if not task:
-            await callback.answer("Ошибка: Задача не найдена.")
-            return
+    task = await session.get(Task, task_id)
+    if task is None:
+        await callback.answer("Ошибка: задача не найдена.")
+        return
 
-        # 2. Проверяем правильность
-        options = task.payload["options"]
-        correct_option = task.payload["correct_cognitive_distortion"]
-        explanation = task.payload["explanation"]
-        
-        # Защита от выхода за границы массива
-        if option_index >= len(options):
-            await callback.answer("Ошибка данных кнопки")
-            return
+    options = task.payload["options"]
+    correct_option = task.payload["correct_cognitive_distortion"]
+    explanation = task.payload["explanation"]
 
-        selected_text = options[option_index]
-        is_correct = (selected_text == correct_option)
+    if option_index >= len(options):
+        await callback.answer("Ошибка данных кнопки")
+        return
 
-        # 3. Работаем с пользователем
-        tg_id = callback.from_user.id
-        result = await session.execute(select(User).where(User.tg_id == tg_id))
-        user = result.scalar_one_or_none()
+    selected_text = options[option_index]
+    is_correct = selected_text == correct_option
 
-        if not user:
-            user = User(tg_id=tg_id, level=1, xp=0, streak=0, max_streak=0)
-            session.add(user)
-            await session.flush()
+    if is_correct:
+        user.xp += XP_PER_CORRECT
+        user.streak += 1
+        if user.streak > user.max_streak:
+            user.max_streak = user.streak
+        header = "✅ <b>Верно!</b>"
+    else:
+        user.streak = 0
+        header = f"❌ <b>Ошибка.</b>\nПравильный ответ: <b>{correct_option}</b>"
 
-        # 4. Начисляем очки и серию
-        if is_correct:
-            user.xp += 10
-            user.streak += 1
-            
-            # Проверяем рекорд (max_streak может быть None у старых юзеров, поэтому (user.max_streak or 0))
-            current_max = user.max_streak if user.max_streak else 0
-            if user.streak > current_max:
-                user.max_streak = user.streak
-            
-            header = "✅ <b>Верно!</b>"
-        else:
-            user.streak = 0
-            header = f"❌ <b>Ошибка.</b>\nПравильный ответ: <b>{correct_option}</b>"
+    user.level = _level_for_xp(user.xp)
 
-        # 5. Сохраняем попытку
-        attempt = Attempt(
+    session.add(
+        Attempt(
             user_id=user.id,
             task_id=task.id,
             chosen_code=selected_text,
-            is_correct=is_correct
+            is_correct=is_correct,
         )
-        session.add(attempt)
-        await session.commit()
+    )
 
-    # --- ЛОГИКА КНОПОК (ГЕНЕРАТОР или ТРЕНИРОВКА) ---
     builder = InlineKeyboardBuilder()
-    
-    # Узнаем, в каком режиме пользователь
     current_state = await state.get_state()
-    
     if current_state == GenState.active.state:
-        # Режим Генератора
         builder.button(text="🎲 Сгенерировать еще", callback_data="generate_new_task")
         await state.clear()
     else:
-        # Режим Тренировки (обычный)
         builder.button(text="➡️ Следующая задача", callback_data="start_training")
-
     builder.button(text="🔙 В меню", callback_data="back_to_menu")
     builder.adjust(1)
-    
+
     text = (
         f"{header}\n\n"
         f"📖 <b>Пояснение:</b>\n{explanation}\n\n"
@@ -98,5 +84,5 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
     except Exception:
         await callback.message.answer(text, reply_markup=builder.as_markup())
-        
+
     await callback.answer()

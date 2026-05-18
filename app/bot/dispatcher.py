@@ -1,20 +1,23 @@
 import logging
 
 from aiogram import Dispatcher, types
-from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 
-from app.core.config import settings
 from app.bot.handlers import (
-    base,
-    training,
-    check_answer,
-    progress,
-    my_situation,
-    test_mode,
     ai_generator,
+    base,
+    check_answer,
+    my_situation,
+    progress,
+    test_mode,
+    training,
 )
+from app.bot.middlewares.ai_quota import AiQuotaMiddleware
+from app.bot.middlewares.db import DbSessionMiddleware
 from app.bot.middlewares.throttling import ThrottlingMiddleware
+from app.bot.middlewares.user import UserMiddleware
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +28,26 @@ else:
 
 dp = Dispatcher(storage=storage)
 
-# Throttling только для AI-роутеров (дорогие вызовы)
+# Global: DB session + auto-create User. Order matters — DB must run before User.
+db_mw = DbSessionMiddleware()
+user_mw = UserMiddleware()
+dp.message.middleware(db_mw)
+dp.message.middleware(user_mw)
+dp.callback_query.middleware(db_mw)
+dp.callback_query.middleware(user_mw)
+
+# Per-user throttling on AI-touching routers
 ai_throttle = ThrottlingMiddleware(rate_seconds=1.5)
 my_situation.router.message.middleware(ai_throttle)
 my_situation.router.callback_query.middleware(ai_throttle)
 ai_generator.router.callback_query.middleware(ai_throttle)
 
-# Порядок важен
+# Daily quota for AI requests (no-op if Redis is not configured)
+ai_quota = AiQuotaMiddleware(redis_url=settings.REDIS_URL, daily_limit=settings.CLAUDE_DAILY_LIMIT)
+my_situation.router.message.middleware(ai_quota)
+ai_generator.router.callback_query.middleware(ai_quota)
+
+# Order matters
 dp.include_router(base.router)
 dp.include_router(training.router)
 dp.include_router(check_answer.router)

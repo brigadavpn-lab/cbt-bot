@@ -1,12 +1,13 @@
 import logging
-from aiogram import Router, F, types
+
+from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.db.session import AsyncSessionLocal
-from app.db.models import Task
 from app.bot.states import GenState
+from app.core.config import settings
+from app.db.models import Task
 from app.services.claude import generate_task
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,11 @@ router = Router()
 
 
 @router.callback_query(F.data == "generate_new_task")
-async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext):
+async def generate_task_handler(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+):
     if not settings.ANTHROPIC_API_KEY:
         await callback.answer("AI не настроен!", show_alert=True)
         return
@@ -35,12 +40,10 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
         )
         return
 
-    async with AsyncSessionLocal() as session:
-        new_task = Task(payload=task_data, difficulty=1, active=True)
-        session.add(new_task)
-        await session.commit()
-        await session.refresh(new_task)
-        task_id = new_task.id
+    new_task = Task(payload=task_data, difficulty=1, active=True)
+    session.add(new_task)
+    await session.flush()
+    task_id = new_task.id
 
     await state.set_state(GenState.active)
 

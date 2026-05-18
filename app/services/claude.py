@@ -1,11 +1,12 @@
 import logging
+
 from anthropic import AsyncAnthropic
 
 from app.core.config import settings
 from app.services.prompts import (
     CBT_SYSTEM_PROMPT,
-    TASK_GENERATOR_SYSTEM_PROMPT,
     DISTORTIONS,
+    TASK_GENERATOR_SYSTEM_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,9 +38,27 @@ async def analyze_situation(user_text: str) -> str:
         ],
         messages=[{"role": "user", "content": user_text}],
     )
+    _log_usage("analyze_situation", message)
 
     parts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
     return "\n".join(parts).strip()
+
+
+def _log_usage(op: str, message) -> None:
+    usage = getattr(message, "usage", None)
+    if usage is None:
+        return
+    logger.info(
+        "claude_usage",
+        extra={
+            "op": op,
+            "model": settings.CLAUDE_MODEL,
+            "input_tokens": getattr(usage, "input_tokens", None),
+            "output_tokens": getattr(usage, "output_tokens", None),
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
+        },
+    )
 
 
 _TASK_TOOL = {
@@ -92,6 +111,7 @@ async def generate_task() -> dict:
         tool_choice={"type": "tool", "name": "return_cbt_task"},
         messages=[{"role": "user", "content": "Сгенерируй один кейс."}],
     )
+    _log_usage("generate_task", message)
 
     for block in message.content:
         if getattr(block, "type", None) == "tool_use" and block.name == "return_cbt_task":

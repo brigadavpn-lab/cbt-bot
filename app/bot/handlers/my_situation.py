@@ -1,10 +1,11 @@
 import logging
-from aiogram import Router, F, types
+
+from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.core.config import settings
 from app.bot.states import UserState
+from app.core.config import settings
 from app.services.claude import analyze_situation
 
 logger = logging.getLogger(__name__)
@@ -45,9 +46,7 @@ async def process_situation(message: types.Message, state: FSMContext):
         return
 
     if len(user_text) > MAX_INPUT_LEN:
-        await message.answer(
-            f"Слишком длинное сообщение. Сократите до {MAX_INPUT_LEN} символов."
-        )
+        await message.answer(f"Слишком длинное сообщение. Сократите до {MAX_INPUT_LEN} символов.")
         return
 
     await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
@@ -56,9 +55,7 @@ async def process_situation(message: types.Message, state: FSMContext):
         ai_answer = await analyze_situation(user_text)
     except Exception:
         logger.exception("Claude API call failed")
-        await message.answer(
-            "⚠️ Сервис временно недоступен. Попробуйте, пожалуйста, позже."
-        )
+        await message.answer("⚠️ Сервис временно недоступен. Попробуйте, пожалуйста, позже.")
         await state.clear()
         return
 
