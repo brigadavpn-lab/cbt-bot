@@ -1,6 +1,7 @@
 from app.services.prompts import (
     CBT_SYSTEM_PROMPT,
     DISTORTIONS,
+    SITUATION_SYSTEM_PROMPT,
     TASK_GENERATOR_SYSTEM_PROMPT,
 )
 
@@ -8,6 +9,10 @@ from app.services.prompts import (
 def test_distortions_present_in_cbt_prompt():
     for d in DISTORTIONS:
         assert d in CBT_SYSTEM_PROMPT
+
+
+def test_situation_alias_matches_cbt():
+    assert SITUATION_SYSTEM_PROMPT is CBT_SYSTEM_PROMPT
 
 
 def test_distortions_present_in_generator_prompt():

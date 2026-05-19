@@ -39,6 +39,11 @@ CBT_SYSTEM_PROMPT = f"""Ты — опытный психолог, специал
 - Ответ не длиннее ~1500 символов.
 """
 
+# Alias to satisfy the optimization spec; same value, used by anyone importing
+# under the SITUATION_SYSTEM_PROMPT name.
+SITUATION_SYSTEM_PROMPT = CBT_SYSTEM_PROMPT
+
+
 TASK_GENERATOR_SYSTEM_PROMPT = f"""Ты генерируешь учебные кейсы для тренажёра по КПТ.
 
 Правила:

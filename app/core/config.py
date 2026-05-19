@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     # --- Claude (Anthropic) ---
     ANTHROPIC_API_KEY: str
     CLAUDE_MODEL: str = "claude-sonnet-4-6"
-    CLAUDE_MAX_TOKENS: int = 1024
+    # Per-feature output cap. Лучше держать <=1024 — длиннее ответы не нужны,
+    # а лишний output-токен биллится 5x от input.
+    CLAUDE_MAX_TOKENS_SITUATION: int = 600
+    CLAUDE_MAX_TOKENS_GENERATOR: int = 800
 
     # --- Админ ---
     ADMIN_TG_ID: int

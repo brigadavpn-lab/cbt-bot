@@ -30,7 +30,12 @@ async def test_analyze_situation_calls_claude_with_system_prompt(monkeypatch):
     create.assert_awaited_once()
     kwargs = create.await_args.kwargs
     assert kwargs["model"]
+    # Block 2: per-feature max_tokens budget.
+    assert kwargs["max_tokens"] == 600
+    # Block 3: no chat history — exactly one user message.
     assert kwargs["messages"] == [{"role": "user", "content": "Начальник косо посмотрел"}]
+    assert len(kwargs["messages"]) == 1
+    # Block 1: prompt caching enabled.
     assert kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
 
 
@@ -55,6 +60,11 @@ async def test_generate_task_returns_tool_input(monkeypatch):
     result, usage = await claude_module.generate_task()
     assert result == valid_payload
     assert usage.input_tokens == 5 and usage.output_tokens == 10
+    kwargs = create.await_args.kwargs
+    # Block 2: per-feature max_tokens budget for generator.
+    assert kwargs["max_tokens"] == 800
+    # Block 3: no chat history — exactly one user message.
+    assert len(kwargs["messages"]) == 1
 
 
 async def test_generate_task_rejects_correct_not_in_options(monkeypatch):

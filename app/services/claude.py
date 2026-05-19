@@ -55,7 +55,7 @@ async def analyze_situation(user_text: str) -> tuple[str, Usage]:
 
     message = await client.messages.create(
         model=settings.CLAUDE_MODEL,
-        max_tokens=settings.CLAUDE_MAX_TOKENS,
+        max_tokens=settings.CLAUDE_MAX_TOKENS_SITUATION,
         system=[
             {
                 "type": "text",
@@ -110,7 +110,7 @@ async def generate_task() -> tuple[dict, Usage]:
 
     message = await client.messages.create(
         model=settings.CLAUDE_MODEL,
-        max_tokens=settings.CLAUDE_MAX_TOKENS,
+        max_tokens=settings.CLAUDE_MAX_TOKENS_GENERATOR,
         system=[
             {
                 "type": "text",
