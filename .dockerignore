@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+tests
+.idea
+.vscode
+.claude

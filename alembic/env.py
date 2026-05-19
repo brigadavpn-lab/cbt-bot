@@ -1,4 +1,3 @@
-
 import asyncio
 from logging.config import fileConfig
 
@@ -10,6 +9,7 @@ from alembic import context
 # --- НАШИ ИМПОРТЫ ---
 # 1. Импортируем настройки, чтобы взять ссылку на БД
 from app.core.config import settings
+
 # 2. Импортируем модели, чтобы Alembic видел наши таблицы
 from app.db.models import Base
 
@@ -23,6 +23,7 @@ if config.config_file_name is not None:
 # Самое главное: связываем Alembic с нашими моделями
 target_metadata = Base.metadata
 
+
 # Функция запуска миграций (стандартная для асинхронного кода)
 def run_migrations_offline() -> None:
     url = settings.DATABASE_URL
@@ -35,6 +36,7 @@ def run_migrations_offline() -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+
 
 async def run_migrations_online() -> None:
     # Подменяем URL в конфиге на наш реальный из .env
@@ -52,10 +54,12 @@ async def run_migrations_online() -> None:
 
     await connectable.dispose()
 
+
 def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
