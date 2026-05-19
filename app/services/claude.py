@@ -8,6 +8,7 @@ from app.services.prompts import (
     DISTORTIONS,
     TASK_GENERATOR_SYSTEM_PROMPT,
 )
+from app.services.usage_logger import Usage
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,33 @@ def get_client() -> AsyncAnthropic | None:
     return _client
 
 
-async def analyze_situation(user_text: str) -> str:
+def _extract_usage(message) -> Usage:
+    raw = getattr(message, "usage", None)
+    if raw is None:
+        return Usage()
+    return Usage(
+        input_tokens=getattr(raw, "input_tokens", 0) or 0,
+        output_tokens=getattr(raw, "output_tokens", 0) or 0,
+        cache_read_input_tokens=getattr(raw, "cache_read_input_tokens", 0) or 0,
+        cache_creation_input_tokens=getattr(raw, "cache_creation_input_tokens", 0) or 0,
+    )
+
+
+def _log_usage_struct(op: str, usage: Usage) -> None:
+    logger.info(
+        "claude_usage",
+        extra={
+            "op": op,
+            "model": settings.CLAUDE_MODEL,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "cache_read_input_tokens": usage.cache_read_input_tokens,
+            "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+        },
+    )
+
+
+async def analyze_situation(user_text: str) -> tuple[str, Usage]:
     client = get_client()
     if client is None:
         raise RuntimeError("ANTHROPIC_API_KEY is not configured")
@@ -38,27 +65,11 @@ async def analyze_situation(user_text: str) -> str:
         ],
         messages=[{"role": "user", "content": user_text}],
     )
-    _log_usage("analyze_situation", message)
+    usage = _extract_usage(message)
+    _log_usage_struct("analyze_situation", usage)
 
     parts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
-    return "\n".join(parts).strip()
-
-
-def _log_usage(op: str, message) -> None:
-    usage = getattr(message, "usage", None)
-    if usage is None:
-        return
-    logger.info(
-        "claude_usage",
-        extra={
-            "op": op,
-            "model": settings.CLAUDE_MODEL,
-            "input_tokens": getattr(usage, "input_tokens", None),
-            "output_tokens": getattr(usage, "output_tokens", None),
-            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
-            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
-        },
-    )
+    return "\n".join(parts).strip(), usage
 
 
 _TASK_TOOL = {
@@ -92,7 +103,7 @@ _TASK_TOOL = {
 }
 
 
-async def generate_task() -> dict:
+async def generate_task() -> tuple[dict, Usage]:
     client = get_client()
     if client is None:
         raise RuntimeError("ANTHROPIC_API_KEY is not configured")
@@ -111,13 +122,14 @@ async def generate_task() -> dict:
         tool_choice={"type": "tool", "name": "return_cbt_task"},
         messages=[{"role": "user", "content": "Сгенерируй один кейс."}],
     )
-    _log_usage("generate_task", message)
+    usage = _extract_usage(message)
+    _log_usage_struct("generate_task", usage)
 
     for block in message.content:
         if getattr(block, "type", None) == "tool_use" and block.name == "return_cbt_task":
             data = dict(block.input)
             if data["correct_cognitive_distortion"] not in data["options"]:
                 raise ValueError("correct answer is not present in options")
-            return data
+            return data, usage
 
     raise ValueError("Claude did not return a tool_use block")

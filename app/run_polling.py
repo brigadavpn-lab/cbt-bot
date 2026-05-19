@@ -5,10 +5,12 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+from aiohttp import web
 
 from app.bot.dispatcher import dp
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.web import create_app
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,20 @@ COMMANDS = [
 ]
 
 
+async def _run_web(bot: Bot) -> None:
+    app = create_app(bot)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, settings.WEB_HOST, settings.WEB_PORT)
+    await site.start()
+    logger.info("HTTP server listening on %s:%s", settings.WEB_HOST, settings.WEB_PORT)
+    try:
+        # Keep the task alive until cancelled.
+        await asyncio.Event().wait()
+    finally:
+        await runner.cleanup()
+
+
 async def main() -> None:
     setup_logging()
     bot = Bot(
@@ -31,7 +47,10 @@ async def main() -> None:
         logger.info("Starting bot in polling mode")
         await bot.delete_webhook(drop_pending_updates=True)
         await bot.set_my_commands(COMMANDS)
-        await dp.start_polling(bot)
+        await asyncio.gather(
+            dp.start_polling(bot),
+            _run_web(bot),
+        )
     finally:
         await bot.session.close()
 

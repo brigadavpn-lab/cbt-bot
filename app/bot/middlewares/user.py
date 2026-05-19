@@ -10,7 +10,10 @@ from app.db.models import User
 
 
 class UserMiddleware(BaseMiddleware):
-    """Fetches or creates a User row for the Telegram user. Requires DbSessionMiddleware."""
+    """Fetches or creates a User row and keeps username/full_name in sync.
+
+    Requires DbSessionMiddleware to run first.
+    """
 
     async def __call__(
         self,
@@ -25,12 +28,22 @@ class UserMiddleware(BaseMiddleware):
 
         stmt = (
             pg_insert(User)
-            .values(tg_id=tg_user.id)
+            .values(
+                tg_id=tg_user.id,
+                username=tg_user.username,
+                full_name=tg_user.full_name,
+            )
             .on_conflict_do_nothing(index_elements=["tg_id"])
         )
         await session.execute(stmt)
 
         result = await session.execute(select(User).where(User.tg_id == tg_user.id))
-        data["user"] = result.scalar_one()
+        user = result.scalar_one()
 
+        # Sync profile fields if they changed in Telegram.
+        if user.username != tg_user.username or user.full_name != tg_user.full_name:
+            user.username = tg_user.username
+            user.full_name = tg_user.full_name
+
+        data["user"] = user
         return await handler(event, data)

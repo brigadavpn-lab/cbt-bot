@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 
 from app.core.config import settings
 
@@ -61,3 +62,22 @@ def setup_logging() -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(settings.LOG_LEVEL.upper())
+
+    # Отдельный файловый канал для биллинг-учёта токенов.
+    # Читается через `tail -f usage.log` на VPS — не зависит от формата root.
+    usage = logging.getLogger("usage_stats")
+    usage.setLevel(logging.INFO)
+    usage.propagate = False
+    usage.handlers.clear()
+    try:
+        usage_handler = RotatingFileHandler(
+            settings.USAGE_LOG_FILE,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        usage_handler.setFormatter(logging.Formatter("%(asctime)s | %(message)s"))
+        usage.addHandler(usage_handler)
+    except OSError:
+        # Файловая система может быть недоступна (например, в тестах) — пропускаем.
+        pass

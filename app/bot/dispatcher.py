@@ -5,15 +5,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage
 
 from app.bot.handlers import (
+    admin,
     ai_generator,
     base,
     check_answer,
     my_situation,
+    payments,
     progress,
     test_mode,
     training,
 )
-from app.bot.middlewares.ai_quota import AiQuotaMiddleware
 from app.bot.middlewares.db import DbSessionMiddleware
 from app.bot.middlewares.throttling import ThrottlingMiddleware
 from app.bot.middlewares.user import UserMiddleware
@@ -28,7 +29,7 @@ else:
 
 dp = Dispatcher(storage=storage)
 
-# Global: DB session + auto-create User. Order matters — DB must run before User.
+# Global: DB session + auto-create/sync User. Order matters — DB before User.
 db_mw = DbSessionMiddleware()
 user_mw = UserMiddleware()
 dp.message.middleware(db_mw)
@@ -36,22 +37,20 @@ dp.message.middleware(user_mw)
 dp.callback_query.middleware(db_mw)
 dp.callback_query.middleware(user_mw)
 
-# Per-user throttling on AI-touching routers
+# Per-user throttling on AI-touching routers (anti-spam, NOT a quota).
 ai_throttle = ThrottlingMiddleware(rate_seconds=1.5)
 my_situation.router.message.middleware(ai_throttle)
 my_situation.router.callback_query.middleware(ai_throttle)
 ai_generator.router.callback_query.middleware(ai_throttle)
 
-# Daily quota for AI requests (no-op if Redis is not configured)
-ai_quota = AiQuotaMiddleware(redis_url=settings.REDIS_URL, daily_limit=settings.CLAUDE_DAILY_LIMIT)
-my_situation.router.message.middleware(ai_quota)
-ai_generator.router.callback_query.middleware(ai_quota)
-
-# Order matters
+# Order matters: admin must come before generic command handlers? Admin uses
+# unique command names (/stats, /userinfo, /setplan), no overlap with base.
+dp.include_router(admin.router)
 dp.include_router(base.router)
 dp.include_router(training.router)
 dp.include_router(check_answer.router)
 dp.include_router(progress.router)
+dp.include_router(payments.router)
 dp.include_router(my_situation.router)
 dp.include_router(ai_generator.router)
 dp.include_router(test_mode.router)

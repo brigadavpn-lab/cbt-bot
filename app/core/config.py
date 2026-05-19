@@ -2,45 +2,51 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # --- Основные настройки ---
-    APP_NAME: str = "CBT_Trainer"  # Имя нашего бота
+    APP_NAME: str = "CBT_Trainer"
 
-    # --- Секреты (читаются из .env) ---
-    # Мы указываем тип данных (str - строка).
-    # Если переменной нет в .env, программа выдаст ошибку.
+    # --- Telegram ---
     BOT_TOKEN: str
 
-    # Ключ Gemini может быть пустым (None), если мы его еще не получили
-    GEMINI_API_KEY: str | None = None
-
     # --- Claude (Anthropic) ---
-    ANTHROPIC_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str
     CLAUDE_MODEL: str = "claude-sonnet-4-6"
     CLAUDE_MAX_TOKENS: int = 1024
-    CLAUDE_DAILY_LIMIT: int = 30  # per-user daily AI request cap; 0 disables
 
-    # Секретный токен для защиты вебхука
+    # --- Админ ---
+    ADMIN_TG_ID: int
+
+    # --- Биллинг (Freemium) ---
+    FREE_LIMIT_SITUATION: int = 5
+    FREE_LIMIT_GENERATOR: int = 3
+    PLAN_WEEKLY_STARS: int = 150
+    PLAN_WEEKLY_RUB: int = 149
+    PLAN_MONTHLY_STARS: int = 390
+    PLAN_MONTHLY_RUB: int = 399
+
+    # --- YooKassa ---
+    YUKASSA_SHOP_ID: str | None = None
+    YUKASSA_SECRET_KEY: str | None = None
+    PUBLIC_BASE_URL: str | None = None
+    YUKASSA_RETURN_URL: str | None = None
+
+    # --- HTTP server (aiohttp) ---
+    WEB_HOST: str = "0.0.0.0"
+    WEB_PORT: int = 8000
+
+    # --- Webhook Telegram (опционально) ---
     SECRET_TOKEN: str = "my-secret-token"
+    WEBHOOK_URL: str | None = None
 
     # --- Инфраструктура ---
-    # Адрес базы данных
     DATABASE_URL: str
-    # Адрес Redis (может быть пустым, если запускаем без него пока)
     REDIS_URL: str | None = None
-
-    # --- Вебхук ---
-    # Адрес, который дает Ngrok (заполним позже)
-    WEBHOOK_URL: str | None = None
 
     # --- Логи ---
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # text|json
+    USAGE_LOG_FILE: str = "usage.log"
 
-    # Магическая настройка:
-    # env_file=".env" -> говорит питону искать файл .env в главной папке
-    # extra="ignore" -> если в .env есть лишние строки, просто игнорировать их
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-# Создаем единственный объект настроек, которым будем пользоваться везде
 settings = Settings()

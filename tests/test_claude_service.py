@@ -23,9 +23,10 @@ async def test_analyze_situation_calls_claude_with_system_prompt(monkeypatch):
     fake_client = SimpleNamespace(messages=SimpleNamespace(create=create))
     monkeypatch.setattr(claude_module, "get_client", lambda: fake_client)
 
-    result = await claude_module.analyze_situation("Начальник косо посмотрел")
+    text, usage = await claude_module.analyze_situation("Начальник косо посмотрел")
 
-    assert result == "разбор ситуации"
+    assert text == "разбор ситуации"
+    assert usage.input_tokens == 10 and usage.output_tokens == 20
     create.assert_awaited_once()
     kwargs = create.await_args.kwargs
     assert kwargs["model"]
@@ -51,8 +52,9 @@ async def test_generate_task_returns_tool_input(monkeypatch):
     fake_client = SimpleNamespace(messages=SimpleNamespace(create=create))
     monkeypatch.setattr(claude_module, "get_client", lambda: fake_client)
 
-    result = await claude_module.generate_task()
+    result, usage = await claude_module.generate_task()
     assert result == valid_payload
+    assert usage.input_tokens == 5 and usage.output_tokens == 10
 
 
 async def test_generate_task_rejects_correct_not_in_options(monkeypatch):
