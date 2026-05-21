@@ -1,4 +1,5 @@
 import logging
+import re
 
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
@@ -37,11 +38,12 @@ SITUATION_SYSTEM_PROMPT = """
 17. Ретроспективное искажение
 
 Формат ответа строго:
-1. 🧐 <b>Когнитивное искажение:</b> [название из списка]
-2. 🧠 <b>Почему это ошибка:</b> [краткое объяснение]
-3. 💡 <b>Рациональный ответ:</b> [как стоит думать]
+1. 🧐 Когнитивное искажение: [название из списка]
+2. 🧠 Почему это ошибка: [краткое объяснение]
+3. 💡 Рациональный ответ: [как стоит думать]
 
-Отвечай эмпатично, с поддержкой. Используй эмодзи. Отвечай на русском языке.
+Не используй никакую разметку: ни Markdown, ни HTML, ни звёздочки, ни подчёркивания. Только чистый текст и уместные эмодзи.
+Отвечай эмпатично, с поддержкой. Отвечай на русском языке.
 """.strip()
 
 
@@ -81,6 +83,10 @@ async def process_situation(message: types.Message, state: FSMContext):
             messages=[{"role": "user", "content": user_text}]
         )
         ai_answer = response.content[0].text
+         # Убираем Markdown разметку
+        ai_answer = re.sub(r'\*+', '', ai_answer)
+        ai_answer = re.sub(r'_+', '', ai_answer)
+        ai_answer = re.sub(r'`+', '', ai_answer)
 
         builder = InlineKeyboardBuilder()
         builder.button(text="🔄 Разобрать другую ситуацию", callback_data="my_situation")
