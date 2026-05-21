@@ -8,7 +8,7 @@ services:
       - db
       - redis
     # ОДНА СТРОКА - САМЫЙ НАДЕЖНЫЙ ВАРИАНТ:
-    command: sh -c "poetry run alembic upgrade head && poetry run python -m app.run_polling"
+    command: sh -c "alembic upgrade head && python -m app.run_polling"
 
   # --- БАЗА ДАННЫХ ---
   db:
@@ -16,7 +16,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: cbt_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
