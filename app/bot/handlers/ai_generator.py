@@ -1,12 +1,16 @@
 import json
+import logging
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task
+from app.bot.states import GenState
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -84,7 +88,7 @@ GENERATOR_PROMPT = """
 
 
 @router.callback_query(F.data == "generate_new_task")
-async def generate_task_handler(callback: types.CallbackQuery):
+async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext):
     if not settings.ANTHROPIC_API_KEY:
         await callback.answer("AI не настроен!", show_alert=True)
         return
@@ -110,7 +114,11 @@ async def generate_task_handler(callback: types.CallbackQuery):
             await session.refresh(new_task)
             task_id = new_task.id
 
-        # 4. Рисуем кнопки
+        # 4. Включаем состояние "Режим генератора" — это даст check_answer.py
+        # показать кнопку "🎲 Сгенерировать ещё" вместо "Следующая задача"
+        await state.set_state(GenState.active)
+
+        # 5. Рисуем кнопки
         builder = InlineKeyboardBuilder()
 
         for index, option in enumerate(task_data["options"]):
@@ -130,15 +138,17 @@ async def generate_task_handler(callback: types.CallbackQuery):
         await callback.message.edit_text(msg_text, reply_markup=builder.as_markup())
 
     except json.JSONDecodeError:
+        logger.exception("Claude returned invalid JSON for generator")
         await callback.message.edit_text(
             "⚠️ Ошибка: ИИ вернул неверный формат. Попробуй ещё раз.",
             reply_markup=InlineKeyboardBuilder().button(
                 text="🎲 Попробовать снова", callback_data="generate_new_task"
             ).as_markup()
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Claude task generation failed")
         await callback.message.edit_text(
-            f"⚠️ Ошибка генерации. Попробуй ещё раз.\n<code>{e}</code>",
+            "⚠️ Ошибка генерации. Попробуй ещё раз.",
             reply_markup=InlineKeyboardBuilder().button(
                 text="🎲 Попробовать снова", callback_data="generate_new_task"
             ).as_markup()

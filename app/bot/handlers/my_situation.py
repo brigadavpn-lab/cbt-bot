@@ -1,3 +1,5 @@
+import logging
+
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
@@ -6,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.core.config import settings
 from app.bot.states import UserState
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -50,7 +53,8 @@ async def start_my_situation(callback: types.CallbackQuery, state: FSMContext):
         "🧠 <b>Разбор вашей ситуации</b>\n\n"
         "Опишите, что случилось, и какие мысли у вас возникли.\n"
         "<i>Пример: Начальник косо посмотрел, наверное, хочет меня уволить.</i>\n\n"
-        "✍️ <b>Напишите вашу ситуацию ниже:</b>"
+        "✍️ <b>Напишите вашу ситуацию ниже:</b>\n\n"
+        "<i>Чтобы отменить — напишите /cancel</i>"
     )
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Отмена", callback_data="back_to_menu")
@@ -85,7 +89,8 @@ async def process_situation(message: types.Message, state: FSMContext):
 
         await message.answer(ai_answer, reply_markup=builder.as_markup())
 
-    except Exception as e:
-        await message.answer(f"⚠️ Произошла ошибка при связи с ИИ: {e}")
+    except Exception:
+        logger.exception("Claude API call failed (analyze_situation)")
+        await message.answer("⚠️ Произошла ошибка при связи с ИИ. Попробуйте позже.")
 
     await state.clear()
