@@ -4,7 +4,12 @@ from app.core.config import settings
 # 1. Создаем "движок" (Engine)
 # Это постоянный канал связи с базой данных по адресу из настроек.
 # echo=False значит "не засоряй консоль лишними техническими деталями"
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 
 # 2. Фабрика сессий (SessionMaker)
 # Каждый раз, когда нам нужно поработать с базой, мы просим эту фабрику

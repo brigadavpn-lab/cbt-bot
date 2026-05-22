@@ -12,7 +12,7 @@ from app.bot.states import UserState
 logger = logging.getLogger(__name__)
 router = Router()
 
-client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
 
 SITUATION_SYSTEM_PROMPT = """
 Ты — опытный психолог, специалист по когнитивно-поведенческой терапии (КПТ).
@@ -67,7 +67,7 @@ async def start_my_situation(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(UserState.waiting_for_situation)
 async def process_situation(message: types.Message, state: FSMContext):
-    if not settings.ANTHROPIC_API_KEY:
+    if not settings.ANTHROPIC_API_KEY.get_secret_value():
         await message.answer("⚠️ Ошибка: AI-ключ не настроен.")
         await state.clear()
         return

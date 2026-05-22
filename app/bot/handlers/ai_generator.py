@@ -13,7 +13,7 @@ from app.bot.states import GenState
 logger = logging.getLogger(__name__)
 router = Router()
 
-client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
 
 GENERATOR_PROMPT = """
 Придумай 1 ситуацию для тренировки выявления когнитивных искажений в когнитивно-поведенческой терапии (КПТ).
@@ -89,7 +89,7 @@ GENERATOR_PROMPT = """
 
 @router.callback_query(F.data == "generate_new_task")
 async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext):
-    if not settings.ANTHROPIC_API_KEY:
+    if not settings.ANTHROPIC_API_KEY.get_secret_value():
         await callback.answer("AI не настроен!", show_alert=True)
         return
 

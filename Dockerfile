@@ -22,3 +22,10 @@ RUN pip install --no-cache-dir \
     anthropic==0.40.0 \
     greenlet==3.2.4 \
     python-json-logger==4.0.0
+
+# 6. Создаём непривилегированного пользователя и передаём ему владение /app
+RUN useradd --system --create-home --uid 1000 --shell /bin/bash botuser \
+    && chown -R botuser:botuser /app
+
+# 7. Переключаем контекст выполнения на непривилегированного пользователя
+USER botuser

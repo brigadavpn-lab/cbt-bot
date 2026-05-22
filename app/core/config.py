@@ -1,13 +1,15 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     APP_NAME: str = "CBT_Trainer"
 
-    BOT_TOKEN: str
-    ANTHROPIC_API_KEY: str
+    BOT_TOKEN: SecretStr
+    ANTHROPIC_API_KEY: SecretStr
     ADMIN_TG_ID: int = 0
 
-    SECRET_TOKEN: str = "my-secret-token"
+    SECRET_TOKEN: SecretStr
 
     DATABASE_URL: str
     REDIS_URL: str | None = None

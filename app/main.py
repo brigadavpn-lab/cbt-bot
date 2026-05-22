@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Создаем объект бота
 bot = Bot(
-    token=settings.BOT_TOKEN,
+    token=settings.BOT_TOKEN.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"Setting webhook to {webhook_endpoint}")
         await bot.set_webhook(
             url=webhook_endpoint,
-            secret_token=settings.SECRET_TOKEN,
+            secret_token=settings.SECRET_TOKEN.get_secret_value(),
             drop_pending_updates=True
         )
     
@@ -51,7 +51,7 @@ app = FastAPI(lifespan=lifespan)
 async def telegram_webhook(request: Request):
     # Проверка "пароля" от Телеграма (защита от хакеров)
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    if secret != settings.SECRET_TOKEN:
+    if secret != settings.SECRET_TOKEN.get_secret_value():
         return status.HTTP_401_UNAUTHORIZED
 
     # Обработка сообщения
