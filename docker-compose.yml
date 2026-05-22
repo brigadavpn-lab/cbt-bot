@@ -5,8 +5,10 @@ services:
     restart: always
     env_file: .env
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     # ОДНА СТРОКА - САМЫЙ НАДЕЖНЫЙ ВАРИАНТ:
     command: sh -c "alembic upgrade head && python -m app.run_polling"
 
@@ -20,11 +22,21 @@ services:
       POSTGRES_DB: cbt_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cbt_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # --- КЭШ ---
   redis:
     image: redis:7-alpine
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
