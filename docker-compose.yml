@@ -11,6 +11,11 @@ services:
         condition: service_healthy
     # ОДНА СТРОКА - САМЫЙ НАДЕЖНЫЙ ВАРИАНТ:
     command: sh -c "alembic upgrade head && python -m app.run_polling"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # --- БАЗА ДАННЫХ ---
   db:
