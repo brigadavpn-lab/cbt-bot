@@ -1,5 +1,6 @@
 import json
 import logging
+import random
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
@@ -8,12 +9,55 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task
+from sqlalchemy import text
+
 from app.bot.states import GenState
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
+
+DISTORTIONS = [
+    "Черно-белое мышление",
+    "Чтение мыслей",
+    "Сверхобобщение",
+    "Катастрофизация",
+    "Предсказания будущего",
+    "Обесценивание",
+    "Негативный фильтр",
+    "Завышенные стандарты",
+    "Тирания долженствования",
+    "Магическое мышление",
+    "Навешивание ярлыков",
+    "Персонализация",
+    "Обвинение",
+    "Неадекватные социальные сравнения",
+    "Ориентация на сожаление",
+    "Эффект невозвратных затрат",
+    "Ретроспективное искажение",
+]
+
+
+async def pick_distortion() -> str:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text(
+                "SELECT payload->>'correct_cognitive_distortion', COUNT(*) "
+                "FROM tasks WHERE active=true GROUP BY 1"
+            )
+        )
+        rows = result.fetchall()
+
+    counts = {d: 0 for d in DISTORTIONS}
+    for distortion, count in rows:
+        if distortion in counts:
+            counts[distortion] = count
+
+    min_count = min(counts.values())
+    candidates = [d for d, c in counts.items() if c == min_count]
+    return random.choice(candidates)
+
 
 GENERATOR_PROMPT = """
 Придумай 1 ситуацию для тренировки выявления когнитивных искажений в когнитивно-поведенческой терапии (КПТ).
@@ -98,10 +142,12 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
 
     try:
         # 2. Запрос к Claude
+        chosen = await pick_distortion()
+        user_content = GENERATOR_PROMPT + f"\n\nИскажение (обязательно): {chosen}"
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=800,
-            messages=[{"role": "user", "content": GENERATOR_PROMPT}]
+            messages=[{"role": "user", "content": user_content}]
         )
         text = response.content[0].text.replace("```json", "").replace("```", "").strip()
         task_data = json.loads(text)
