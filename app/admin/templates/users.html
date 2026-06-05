@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Пользователи <span style="font-size:16px;color:var(--dark-platinum);font-weight:normal">всего: {{ users|length }}</span></h1>
+
+<div class="card" style="padding:0;overflow:hidden">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Имя</th>
+                <th>Telegram ID</th>
+                <th>Уровень</th>
+                <th>XP</th>
+                <th>Серия</th>
+                <th>Зарегистрирован</th>
+                <th>Последняя активность</th>
+                <th>Запросов к ИИ</th>
+                <th>Токенов</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>
+                    <span class="dot dot-{{ u.color }}"></span>{{ loop.index }}
+                </td>
+                <td>
+                    {% if u.full_name %}
+                        {{ u.full_name }}
+                    {% else %}
+                        <span style="color:var(--dark-platinum);font-style:italic">Неизвестный</span>
+                    {% endif %}
+                </td>
+                <td style="color:var(--dark-platinum)">{{ u.tg_id }}</td>
+                <td>{{ u.level }}</td>
+                <td>{{ u.xp }}</td>
+                <td>{{ u.streak }}</td>
+                <td style="color:var(--dark-platinum)">
+                    {% if u.created_at %}
+                        {{ u.created_at.strftime('%d.%m.%Y %H:%M') }}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if u.last_active_at %}
+                        <span class="badge-{{ u.color }}">{{ u.last_active_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                    {% else %}
+                        <span class="badge-red">никогда</span>
+                    {% endif %}
+                </td>
+                <td>{{ u.total_requests }}</td>
+                <td>{{ "{:,}".format(u.total_tokens | int) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

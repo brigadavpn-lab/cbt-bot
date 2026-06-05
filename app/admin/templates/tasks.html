@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Задачи</h1>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start">
+    <div class="card">
+        <div class="card-label" style="margin-bottom:16px">Распределение по когнитивным искажениям</div>
+        <canvas id="tasksChart"></canvas>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+            <div class="card-label">Всего задач</div>
+            <div class="card-value">{{ total_tasks }}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Активных</div>
+            <div class="card-value" style="color:var(--green)">{{ active_tasks }}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Неактивных</div>
+            <div class="card-value" style="color:var(--red)">{{ inactive_tasks }}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Использовалось в попытках</div>
+            <div class="card-value">{{ used_tasks }}</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ctx = document.getElementById('tasksChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_labels | safe }},
+        datasets: [{
+            label: 'Задач',
+            data: {{ chart_data | safe }},
+            backgroundColor: 'rgba(212,175,55,0.7)',
+            borderColor: '#D4AF37',
+            borderWidth: 1,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#A0A0A0' }, grid: { color: '#D4AF3733' } },
+            y: { ticks: { color: '#E8E8E8', font: { size: 12 } }, grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

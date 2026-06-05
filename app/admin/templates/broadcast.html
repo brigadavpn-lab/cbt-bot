@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Рассылка</h1>
+
+{% if result %}
+<div class="card" style="margin-bottom:24px;border-color:{{ 'var(--green)' if result.sent > 0 else 'var(--red)' }}">
+    <div style="font-size:18px;font-weight:bold;color:{{ 'var(--green)' if result.sent > 0 else 'var(--red)' }};margin-bottom:8px">
+        {% if result.sent > 0 %}✅ Рассылка завершена{% else %}❌ Рассылка не выполнена{% endif %}
+    </div>
+    <div style="font-size:14px;color:var(--platinum)">
+        Отправлено: <strong>{{ result.sent }}</strong> · Ошибок: <strong>{{ result.errors }}</strong>
+    </div>
+</div>
+{% endif %}
+
+<div class="card" style="max-width:680px">
+    <form action="/admin/broadcast/send" method="post">
+        <div style="margin-bottom:16px">
+            <label style="display:block;font-size:14px;color:var(--dark-platinum);margin-bottom:6px">
+                Текст рассылки
+            </label>
+            <textarea name="text" rows="8" placeholder="Введите текст сообщения..."></textarea>
+            <div style="font-size:12px;color:var(--dark-platinum);margin-top:6px">
+                Используйте {name} для обращения по имени. Пример: Привет, {name}!
+            </div>
+        </div>
+
+        <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
+            <input type="checkbox" name="personalize" value="1" id="personalize"
+                   style="width:16px;height:16px;accent-color:var(--gold)">
+            <label for="personalize" style="font-size:14px;color:var(--platinum);cursor:pointer">
+                Персонализировать {name} (подставить имя каждого пользователя)
+            </label>
+        </div>
+
+        <button type="submit" class="btn">📢 Отправить рассылку</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBT-Bot Admin</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0D0D0D;
+            --card: #1A1A1A;
+            --header: #111111;
+            --gold: #D4AF37;
+            --platinum: #E8E8E8;
+            --dark-platinum: #A0A0A0;
+            --green: #00C851;
+            --red: #FF4444;
+            --yellow: #FFB700;
+            --border: #D4AF3733;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--platinum);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: var(--header);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            display: flex;
+            align-items: center;
+            gap: 48px;
+            height: 56px;
+        }
+        .logo {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--gold);
+            white-space: nowrap;
+        }
+        nav { display: flex; gap: 4px; }
+        nav a {
+            color: var(--dark-platinum);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: color 0.2s;
+        }
+        nav a:hover { color: var(--platinum); }
+        nav a.active {
+            color: var(--gold);
+            border-bottom: 2px solid var(--gold);
+            border-radius: 0;
+        }
+        main {
+            flex: 1;
+            padding: 32px;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 24px;
+            color: var(--gold);
+            font-weight: bold;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .card-label {
+            font-size: 14px;
+            color: var(--dark-platinum);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .card-value {
+            font-size: 32px;
+            color: var(--platinum);
+            font-weight: bold;
+        }
+        .card-sub {
+            font-size: 13px;
+            color: var(--dark-platinum);
+            margin-top: 4px;
+        }
+        .grid-2x3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--dark-platinum);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 10px 12px;
+            color: var(--platinum);
+            border-bottom: 1px solid #1F1F1F;
+        }
+        tr:nth-child(even) td { background: #1F1F1F; }
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .dot-green { background: var(--green); }
+        .dot-yellow { background: var(--yellow); }
+        .dot-red { background: var(--red); }
+        .badge-green { color: var(--green); }
+        .badge-red { color: var(--red); }
+        .badge-yellow { color: var(--yellow); }
+        .btn {
+            background: var(--gold);
+            color: #0D0D0D;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-danger {
+            background: var(--red);
+            color: #fff;
+        }
+        textarea, input[type="text"] {
+            background: #111;
+            border: 1px solid var(--border);
+            color: var(--platinum);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            width: 100%;
+        }
+        textarea:focus, input:focus { outline: 1px solid var(--gold); }
+        .section-title {
+            font-size: 16px;
+            color: var(--gold);
+            font-weight: bold;
+            margin: 24px 0 12px;
+        }
+        footer {
+            text-align: center;
+            padding: 16px;
+            font-size: 12px;
+            color: var(--dark-platinum);
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div class="logo">⚡ CBT-Bot Admin</div>
+    <nav>
+        <a href="/admin" class="{{ 'active' if active_page == 'dashboard' else '' }}">Дашборд</a>
+        <a href="/admin/users" class="{{ 'active' if active_page == 'users' else '' }}">Пользователи</a>
+        <a href="/admin/tokens" class="{{ 'active' if active_page == 'tokens' else '' }}">Токены</a>
+        <a href="/admin/tasks" class="{{ 'active' if active_page == 'tasks' else '' }}">Задачи</a>
+        <a href="/admin/broadcast" class="{{ 'active' if active_page == 'broadcast' else '' }}">Рассылка</a>
+    </nav>
+</header>
+<main>
+    {% block content %}{% endblock %}
+</main>
+<footer>CBT-Bot Admin Panel · {{ now.year if now else 2025 }}</footer>
+</body>
+</html>
