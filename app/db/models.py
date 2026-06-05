@@ -21,6 +21,8 @@ class User(Base):
     max_streak = Column(Integer, default=0)  # рекорд в сериях
     
     created_at = Column(DateTime(timezone=True), server_default=func.now()) # Дата регистрации
+    full_name = Column(String(512), nullable=True)                          # Имя из Telegram
+    last_active_at = Column(DateTime(timezone=True), nullable=True)         # Последняя активность
 
 # 3. Таблица задач (CBT упражнения)
 class Task(Base):
@@ -47,4 +49,15 @@ class Attempt(Base):
     chosen_code = Column(String) # Какой ответ выбрал пользователь
     
     is_correct = Column(Boolean) # Верно или нет
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TokenUsage(Base):
+    __tablename__ = "token_usage"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    feature = Column(String(50), nullable=False)
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
