@@ -8,6 +8,7 @@ from aiogram.types import BotCommand, ErrorEvent
 from app.bot.handlers import (
     ai_generator,
     base,
+    broadcast,
     check_answer,
     my_situation,
     progress,
@@ -40,7 +41,8 @@ dp.callback_query.middleware(logging_mw)
 
 # --- РОУТЕРЫ (ПОРЯДОК ВАЖЕН) ---
 dp.include_router(base.router)          # 1. Меню /start, /cancel
-dp.include_router(training.router)      # 2. Выдача задач
+dp.include_router(broadcast.router)    # 2. Рассылка (только для admin)
+dp.include_router(training.router)     # 3. Выдача задач
 dp.include_router(check_answer.router)  # 3. Проверка ответов
 dp.include_router(progress.router)      # 4. Прогресс
 dp.include_router(my_situation.router)  # 5. Своя ситуация (Claude)
