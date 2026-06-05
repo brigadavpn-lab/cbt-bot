@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
 
+from app.bot.states import BroadcastState
 from app.core.config import settings
 from app.db.models import User
 from app.db.session import AsyncSessionLocal
@@ -15,13 +16,15 @@ router = Router()
 
 
 # Функция рисования меню (чтобы не дублировать код)
-def get_main_menu():
+def get_main_menu(is_admin: bool = False):
     builder = InlineKeyboardBuilder()
     builder.button(text="🏋️ Тренировка", callback_data="start_training")
     builder.button(text="🎲 ИИ-Генератор задач", callback_data="generate_new_task")
     builder.button(text="📝 Тест (10 вопросов)", callback_data="start_test")
     builder.button(text="🧠 Своя ситуация", callback_data="my_situation")
     builder.button(text="📈 Мой прогресс", callback_data="my_progress")
+    if is_admin:
+        builder.button(text="📢 Рассылка", callback_data="admin_broadcast")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -54,7 +57,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "• <b>Прогресс:</b> Копи опыт (XP) и следи за серией побед!\n\n"
         "С чего начнем?"
     )
-    await message.answer(text, reply_markup=get_main_menu())
+    is_admin = (tg_id == settings.ADMIN_TG_ID and settings.ADMIN_TG_ID != 0)
+    await message.answer(text, reply_markup=get_main_menu(is_admin=is_admin))
 
     # Уведомление админу о новом пользователе (если ADMIN_TG_ID задан и это не сам админ)
     if is_new_user and settings.ADMIN_TG_ID and tg_id != settings.ADMIN_TG_ID:
@@ -93,5 +97,16 @@ async def go_home(callback: types.CallbackQuery, state: FSMContext):
 
     # 2. Меняем текст на главное меню
     text = "Вы вернулись в главное меню. Чем займемся?"
-    await callback.message.edit_text(text, reply_markup=get_main_menu())
+    is_admin = (callback.from_user.id == settings.ADMIN_TG_ID and settings.ADMIN_TG_ID != 0)
+    await callback.message.edit_text(text, reply_markup=get_main_menu(is_admin=is_admin))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_btn(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != settings.ADMIN_TG_ID or settings.ADMIN_TG_ID == 0:
+        await callback.answer("⛔ Нет доступа.", show_alert=True)
+        return
+    await state.set_state(BroadcastState.waiting_for_text)
+    await callback.message.answer("✍️ Введите текст рассылки:\n\nДля отмены отправьте /cancel")
     await callback.answer()

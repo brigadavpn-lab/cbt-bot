@@ -11,3 +11,9 @@ class TestState(StatesGroup):
 # НОВОЕ: Состояние для режима генерации
 class GenState(StatesGroup):
     active = State()
+
+
+class BroadcastState(StatesGroup):
+    waiting_for_text = State()
+    waiting_for_photo = State()
+    confirm = State()
