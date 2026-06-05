@@ -46,6 +46,9 @@ async def lifespan(app: FastAPI):
 # Создаем приложение FastAPI
 app = FastAPI(lifespan=lifespan)
 
+from app.admin.router import router as admin_router
+app.include_router(admin_router)
+
 # Адрес, куда стучится Телеграм
 @app.post("/webhook")
 async def telegram_webhook(request: Request):

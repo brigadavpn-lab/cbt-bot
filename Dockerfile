@@ -21,7 +21,9 @@ RUN pip install --no-cache-dir \
     pydantic-settings==2.12.0 \
     anthropic==0.40.0 \
     greenlet==3.2.4 \
-    python-json-logger==4.0.0
+    python-json-logger==4.0.0 \
+    jinja2==3.1.5 \
+    python-multipart==0.0.20
 
 # 6. Создаём непривилегированного пользователя и передаём ему владение /app
 RUN useradd --system --create-home --uid 1000 --shell /bin/bash botuser \
