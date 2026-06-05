@@ -5,6 +5,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
+from sqlalchemy.sql import func
 
 from app.bot.states import BroadcastState
 from app.core.config import settings
@@ -43,9 +44,22 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await session.execute(select(User).where(User.tg_id == tg_id))
         ).scalar_one_or_none()
         if existing is None:
-            session.add(User(tg_id=tg_id, level=1, xp=0, streak=0, max_streak=0))
+            session.add(User(
+                tg_id=tg_id,
+                level=1,
+                xp=0,
+                streak=0,
+                max_streak=0,
+                full_name=message.from_user.full_name,
+                last_active_at=func.now(),
+            ))
             await session.commit()
             is_new_user = True
+        else:
+            existing.last_active_at = func.now()
+            if existing.full_name != message.from_user.full_name:
+                existing.full_name = message.from_user.full_name
+            await session.commit()
 
     text = (
         f"Привет, <b>{message.from_user.full_name}</b>! 👋\n\n"

@@ -8,6 +8,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.core.config import settings
 from app.bot.states import UserState
+from app.db.session import AsyncSessionLocal
+from app.db.models import User
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -83,7 +85,26 @@ async def process_situation(message: types.Message, state: FSMContext):
             messages=[{"role": "user", "content": user_text}]
         )
         ai_answer = response.content[0].text
-         # Убираем Markdown разметку
+
+        try:
+            async with AsyncSessionLocal() as token_session:
+                from app.db.models import TokenUsage
+                from sqlalchemy import select as sa_select
+                user_row = await token_session.execute(
+                    sa_select(User.id).where(User.tg_id == message.from_user.id)
+                )
+                db_user_id = user_row.scalar_one_or_none()
+                token_session.add(TokenUsage(
+                    user_id=db_user_id,
+                    feature="my_situation",
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                ))
+                await token_session.commit()
+        except Exception:
+            logger.warning("Failed to log token usage for my_situation")
+
+        # Убираем Markdown разметку
         ai_answer = re.sub(r'\*+', '', ai_answer)
         ai_answer = re.sub(r'_+', '', ai_answer)
         ai_answer = re.sub(r'`+', '', ai_answer)
