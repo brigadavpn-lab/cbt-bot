@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Дашборд</h1>
+
+<div class="grid-2x3">
+    <div class="card">
+        <div class="card-label">Пользователи всего</div>
+        <div class="card-value">{{ total_users }}</div>
+        <div class="card-sub">
+            {% if new_7d > 0 %}
+            <span class="badge-green">+{{ new_7d }} за 7 дней</span>
+            {% else %}
+            <span>нет новых за 7 дней</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Активны сегодня</div>
+        <div class="card-value">
+            {% if active_today > 0 %}
+            <span class="badge-green">{{ active_today }}</span>
+            {% else %}
+            <span class="badge-red">0</span>
+            {% endif %}
+        </div>
+        <div class="card-sub">за последние 24 часа</div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Запросов к ИИ сегодня</div>
+        <div class="card-value">{{ requests_today }}</div>
+        <div class="card-sub">всего запросов: {{ total_requests }}</div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Токенов за месяц</div>
+        <div class="card-value">{{ "{:,}".format(input_month + output_month) }}</div>
+        <div class="card-sub">
+            вход: {{ "{:,}".format(input_month) }} · выход: {{ "{:,}".format(output_month) }}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Стоимость API за месяц</div>
+        <div class="card-value">${{ "%.2f"|format(cost_month) }}</div>
+        <div class="card-sub">claude-sonnet-4-6 тарифы</div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Задач в базе</div>
+        <div class="card-value">{{ total_tasks }}</div>
+        <div class="card-sub">активных: <span class="badge-green">{{ active_tasks }}</span></div>
+    </div>
+</div>
+
+{% if top3 %}
+<div class="card">
+    <div class="card-label" style="margin-bottom:16px">Топ-3 искажения этой недели</div>
+    {% for distortion, cnt in top3 %}
+    <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:14px;color:var(--platinum)">{{ distortion }}</span>
+            <span style="font-size:14px;color:var(--dark-platinum)">{{ cnt }}</span>
+        </div>
+        <div style="background:#111;border-radius:4px;height:6px">
+            <div style="background:var(--gold);height:6px;border-radius:4px;width:{{ (cnt / top3_max * 100)|round }}%"></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Расход токенов</h1>
+
+<div class="card" style="margin-bottom:24px">
+    <div class="card-label" style="margin-bottom:16px">Расход по дням (последние 14 дней)</div>
+    <canvas id="tokensChart" height="80"></canvas>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+    {% set sit = features.get('my_situation', {}) %}
+    {% set gen = features.get('ai_generator', {}) %}
+
+    <div class="card">
+        <div class="card-label">🧠 Своя ситуация</div>
+        <div class="card-value">{{ sit.get('cnt', 0) }}</div>
+        <div class="card-sub">
+            запросов · токенов: {{ "{:,}".format((sit.get('input', 0) + sit.get('output', 0)) | int) }}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">🎲 ИИ-Генератор</div>
+        <div class="card-value">{{ gen.get('cnt', 0) }}</div>
+        <div class="card-sub">
+            запросов · токенов: {{ "{:,}".format((gen.get('input', 0) + gen.get('output', 0)) | int) }}
+        </div>
+    </div>
+</div>
+
+{% if top_users %}
+<div class="section-title">Топ-10 пользователей по расходу</div>
+<div class="card" style="padding:0;overflow:hidden">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Имя</th>
+                <th>Telegram ID</th>
+                <th>Токенов всего</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for name, tg_id, total in top_users %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ name or '<span style="color:var(--dark-platinum);font-style:italic">Неизвестный</span>' }}</td>
+                <td style="color:var(--dark-platinum)">{{ tg_id }}</td>
+                <td>{{ "{:,}".format(total | int) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<script>
+const ctx = document.getElementById('tokensChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels | safe }},
+        datasets: [
+            {
+                label: 'Входящие токены',
+                data: {{ chart_input | safe }},
+                borderColor: '#D4AF37',
+                backgroundColor: 'rgba(212,175,55,0.1)',
+                tension: 0.3,
+                fill: true,
+            },
+            {
+                label: 'Исходящие токены',
+                data: {{ chart_output | safe }},
+                borderColor: '#E8E8E8',
+                backgroundColor: 'rgba(232,232,232,0.05)',
+                tension: 0.3,
+                fill: true,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#A0A0A0' } } },
+        scales: {
+            x: { ticks: { color: '#A0A0A0' }, grid: { color: '#D4AF3733' } },
+            y: { ticks: { color: '#A0A0A0' }, grid: { color: '#D4AF3733' } }
+        }
+    }
+});
+</script>
+{% endblock %}
