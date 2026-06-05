@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     WEBHOOK_URL: str | None = None
     LOG_LEVEL: str = "INFO"
 
+    ADMIN_LOGIN: str = "admin"
+    ADMIN_PASSWORD: SecretStr
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
