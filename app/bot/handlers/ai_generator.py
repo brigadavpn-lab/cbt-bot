@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.db.models import Task
+from app.db.models import Task, User
 from sqlalchemy import text
 
 from app.bot.states import GenState
@@ -150,6 +150,25 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
             messages=[{"role": "user", "content": user_content}]
         )
         text = response.content[0].text.replace("```json", "").replace("```", "").strip()
+
+        try:
+            async with AsyncSessionLocal() as token_session:
+                from app.db.models import TokenUsage
+                from sqlalchemy import select as sa_select
+                user_row = await token_session.execute(
+                    sa_select(User.id).where(User.tg_id == callback.from_user.id)
+                )
+                db_user_id = user_row.scalar_one_or_none()
+                token_session.add(TokenUsage(
+                    user_id=db_user_id,
+                    feature="ai_generator",
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                ))
+                await token_session.commit()
+        except Exception:
+            logger.warning("Failed to log token usage for ai_generator")
+
         task_data = json.loads(text)
 
         # 3. Сохраняем в базу
