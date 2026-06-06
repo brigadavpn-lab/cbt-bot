@@ -36,6 +36,7 @@ DISTORTIONS = [
     "Ориентация на сожаление",
     "Эффект невозвратных затрат",
     "Ретроспективное искажение",
+    "Эмоциональное обоснование",
 ]
 
 
@@ -101,6 +102,7 @@ GENERATOR_PROMPT = """
 15. Ориентация на сожаление
 16. Эффект невозвратных затрат
 17. Ретроспективное искажение
+18. Эмоциональное обоснование
 
 ТЕМЫ-ТАБУ — категорически запрещено:
 1. Смерть, суицид, желание умереть.
@@ -141,35 +143,72 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
     await callback.message.edit_text("🎲 <b>Придумываю ситуацию...</b>\nЭто займет пару секунд.")
 
     try:
-        # 2. Запрос к Claude
+        # 2. Запрос к Claude с валидацией и ретраями
         chosen = await pick_distortion()
-        user_content = GENERATOR_PROMPT + f"\n\nИскажение (обязательно): {chosen}"
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=800,
-            messages=[{"role": "user", "content": user_content}]
+        distortion_instruction = (
+            f"\n\nОБЯЗАТЕЛЬНОЕ ТРЕБОВАНИЕ: В поле \"correct_cognitive_distortion\" "
+            f"напиши СТРОГО И ДОСЛОВНО следующую строку, без изменений, "
+            f"без синонимов, без сокращений:\n\n    {chosen}\n\n"
+            f"Скопируй эту строку точно. Любое другое значение — ошибка."
         )
-        text = response.content[0].text.replace("```json", "").replace("```", "").strip()
+        user_content = GENERATOR_PROMPT + distortion_instruction
 
-        try:
-            async with AsyncSessionLocal() as token_session:
-                from app.db.models import TokenUsage
-                from sqlalchemy import select as sa_select
-                user_row = await token_session.execute(
-                    sa_select(User.id).where(User.tg_id == callback.from_user.id)
+        MAX_RETRIES = 3
+        last_error = None
+        task_data = None
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=800,
+                    messages=[{"role": "user", "content": user_content}]
                 )
-                db_user_id = user_row.scalar_one_or_none()
-                token_session.add(TokenUsage(
-                    user_id=db_user_id,
-                    feature="ai_generator",
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
-                ))
-                await token_session.commit()
-        except Exception:
-            logger.warning("Failed to log token usage for ai_generator")
 
-        task_data = json.loads(text)
+                try:
+                    async with AsyncSessionLocal() as token_session:
+                        from app.db.models import TokenUsage
+                        from sqlalchemy import select as sa_select
+                        user_row = await token_session.execute(
+                            sa_select(User.id).where(User.tg_id == callback.from_user.id)
+                        )
+                        db_user_id = user_row.scalar_one_or_none()
+                        token_session.add(TokenUsage(
+                            user_id=db_user_id,
+                            feature="ai_generator",
+                            input_tokens=response.usage.input_tokens,
+                            output_tokens=response.usage.output_tokens,
+                        ))
+                        await token_session.commit()
+                except Exception:
+                    logger.warning("Failed to log token usage for ai_generator")
+
+                raw = response.content[0].text.replace("```json", "").replace("```", "").strip()
+                task_data = json.loads(raw)
+
+                actual = task_data.get("correct_cognitive_distortion", "")
+                if actual not in DISTORTIONS:
+                    logger.warning(
+                        f"[generate_task] attempt={attempt+1}/{MAX_RETRIES} "
+                        f"invalid distortion: got={repr(actual)} expected={repr(chosen)}"
+                    )
+                    last_error = f"invalid distortion: {repr(actual)}"
+                    task_data = None
+                    continue
+
+                break
+
+            except json.JSONDecodeError as e:
+                logger.warning(f"[generate_task] attempt={attempt+1}/{MAX_RETRIES} JSON parse error: {e}")
+                last_error = str(e)
+                continue
+
+        if task_data is None:
+            logger.error(
+                f"[generate_task] FAILED after {MAX_RETRIES} attempts. "
+                f"distortion={repr(chosen)} last_error={last_error}"
+            )
+            raise RuntimeError(f"Task generation failed after {MAX_RETRIES} attempts: {last_error}")
 
         # 3. Сохраняем в базу
         async with AsyncSessionLocal() as session:
@@ -202,14 +241,6 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
 
         await callback.message.edit_text(msg_text, reply_markup=builder.as_markup())
 
-    except json.JSONDecodeError:
-        logger.exception("Claude returned invalid JSON for generator")
-        await callback.message.edit_text(
-            "⚠️ Ошибка: ИИ вернул неверный формат. Попробуй ещё раз.",
-            reply_markup=InlineKeyboardBuilder().button(
-                text="🎲 Попробовать снова", callback_data="generate_new_task"
-            ).as_markup()
-        )
     except Exception:
         logger.exception("Claude task generation failed")
         await callback.message.edit_text(
