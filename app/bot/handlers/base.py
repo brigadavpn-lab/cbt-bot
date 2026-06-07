@@ -11,6 +11,7 @@ from app.bot.states import BroadcastState
 from app.core.config import settings
 from app.db.models import User
 from app.db.session import AsyncSessionLocal
+from app.utils.html import esc
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -62,7 +63,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await session.commit()
 
     text = (
-        f"Привет, <b>{message.from_user.full_name}</b>! 👋\n\n"
+        f"Привет, <b>{esc(message.from_user.full_name)}</b>! 👋\n\n"
         "Я — <b>CBT-Gym</b>, твой персональный тренажер по работе с автоматическими мыслями.\n"
         "Я помогаю находить когнитивные искажения — ошибки в мыслях, которые вызывают тревогу и стресс.\n\n"
         "💪 <b>Как мы будем тренироваться?</b>\n"
@@ -81,8 +82,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 chat_id=settings.ADMIN_TG_ID,
                 text=(
                     "👤 <b>Новый пользователь!</b>\n\n"
-                    f"Имя: {message.from_user.full_name}\n"
-                    f"Username: @{message.from_user.username}\n"
+                    f"Имя: {esc(message.from_user.full_name)}\n"
+                    f"Username: @{esc(message.from_user.username)}\n"
                     f"ID: {tg_id}"
                 ),
                 parse_mode="HTML",

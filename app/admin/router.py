@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.admin.auth import verify_admin
 from app.db.models import Attempt, Task, TokenUsage, User
 from app.db.session import AsyncSessionLocal
+from app.utils.html import esc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/admin/templates")
@@ -251,7 +252,7 @@ async def broadcast_send(
     for tg_id, full_name in rows:
         msg = text_msg
         if do_personalize and "{name}" in msg:
-            name = full_name or "Пользователь"
+            name = esc(full_name or "Пользователь")
             msg = msg.replace("{name}", name)
         try:
             await bot.send_message(chat_id=tg_id, text=msg, parse_mode="HTML")

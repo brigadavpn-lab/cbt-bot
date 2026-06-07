@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.bot.states import UserState
 from app.db.session import AsyncSessionLocal
 from app.db.models import User
+from app.utils.html import esc
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -105,10 +106,11 @@ async def process_situation(message: types.Message, state: FSMContext):
         except Exception:
             logger.warning("Failed to log token usage for my_situation")
 
-        # Убираем Markdown разметку
+        # Убираем Markdown разметку, затем экранируем для HTML-режима
         ai_answer = re.sub(r'\*+', '', ai_answer)
         ai_answer = re.sub(r'_+', '', ai_answer)
         ai_answer = re.sub(r'`+', '', ai_answer)
+        ai_answer = esc(ai_answer)
 
         builder = InlineKeyboardBuilder()
         builder.button(text="🔄 Разобрать другую ситуацию", callback_data="my_situation")
