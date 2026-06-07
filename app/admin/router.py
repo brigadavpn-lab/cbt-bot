@@ -16,6 +16,14 @@ templates = Jinja2Templates(directory="app/admin/templates")
 templates.env.globals["now"] = datetime.utcnow()
 
 
+def _add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 # ─── Дашборд ────────────────────────────────────────────────────────────────
 
 @router.get("", response_class=HTMLResponse)
@@ -59,7 +67,7 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
         )).fetchall()
         top3_max = top3[0][1] if top3 else 1
 
-    return templates.TemplateResponse("dashboard.html", {
+    response = templates.TemplateResponse("dashboard.html", {
         "request": request,
         "active_page": "dashboard",
         "total_users": total_users,
@@ -75,6 +83,7 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
         "top3": top3,
         "top3_max": top3_max,
     })
+    return _add_security_headers(response)
 
 
 # ─── Пользователи ───────────────────────────────────────────────────────────
@@ -119,11 +128,12 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
         for r in rows
     ]
 
-    return templates.TemplateResponse("users.html", {
+    response = templates.TemplateResponse("users.html", {
         "request": request,
         "active_page": "users",
         "users": users,
     })
+    return _add_security_headers(response)
 
 
 # ─── Токены ─────────────────────────────────────────────────────────────────
@@ -161,7 +171,7 @@ async def tokens_page(request: Request, admin: str = Depends(verify_admin)):
 
     features = {r[0]: {"cnt": r[1], "input": r[2], "output": r[3]} for r in by_feature}
 
-    return templates.TemplateResponse("tokens.html", {
+    response = templates.TemplateResponse("tokens.html", {
         "request": request,
         "active_page": "tokens",
         "chart_labels": chart_labels,
@@ -170,6 +180,7 @@ async def tokens_page(request: Request, admin: str = Depends(verify_admin)):
         "features": features,
         "top_users": top_users,
     })
+    return _add_security_headers(response)
 
 
 # ─── Задачи ─────────────────────────────────────────────────────────────────
@@ -193,7 +204,7 @@ async def tasks_page(request: Request, admin: str = Depends(verify_admin)):
     labels = json.dumps([r[0] or "Неизвестно" for r in distrib])
     data = json.dumps([int(r[1]) for r in distrib])
 
-    return templates.TemplateResponse("tasks.html", {
+    response = templates.TemplateResponse("tasks.html", {
         "request": request,
         "active_page": "tasks",
         "chart_labels": labels,
@@ -204,17 +215,19 @@ async def tasks_page(request: Request, admin: str = Depends(verify_admin)):
         "inactive_tasks": total_tasks - active_tasks,
         "used_tasks": used_tasks,
     })
+    return _add_security_headers(response)
 
 
 # ─── Рассылка ────────────────────────────────────────────────────────────────
 
 @router.get("/broadcast", response_class=HTMLResponse)
 async def broadcast_page(request: Request, admin: str = Depends(verify_admin)):
-    return templates.TemplateResponse("broadcast.html", {
+    response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": None,
     })
+    return _add_security_headers(response)
 
 
 @router.post("/broadcast/send", response_class=HTMLResponse)
@@ -247,8 +260,9 @@ async def broadcast_send(
             errors += 1
         await asyncio.sleep(0.05)
 
-    return templates.TemplateResponse("broadcast.html", {
+    response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": {"sent": sent, "errors": errors},
     })
+    return _add_security_headers(response)
