@@ -25,6 +25,7 @@ def get_main_menu(is_admin: bool = False):
     builder.button(text="📝 Тест (10 вопросов)", callback_data="start_test")
     builder.button(text="🧠 Своя ситуация", callback_data="my_situation")
     builder.button(text="📈 Мой прогресс", callback_data="my_progress")
+    builder.button(text="📝 Обратная связь", callback_data="feedback")
     if is_admin:
         builder.button(text="📢 Рассылка", callback_data="admin_broadcast")
     builder.adjust(1)
