@@ -64,7 +64,9 @@ async def start_my_situation(callback: types.CallbackQuery, state: FSMContext):
         "Опишите, что случилось, и какие мысли у вас возникли.\n"
         "<i>Пример: Начальник косо посмотрел, наверное, хочет меня уволить.</i>\n\n"
         "✍️ <b>Напишите вашу ситуацию ниже:</b>\n\n"
-        "<i>Чтобы отменить — напишите /cancel</i>"
+        "<i>Чтобы отменить — напишите /cancel</i>\n\n"
+        "⚠️ Текст вашей ситуации будет обработан сервисом Anthropic Claude.\n"
+        "⚠️ Бот не является психологической помощью и не заменяет специалиста."
     )
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Отмена", callback_data="back_to_menu")
@@ -155,8 +157,12 @@ async def process_situation(message: types.Message, state: FSMContext):
 
         await message.answer(ai_answer, reply_markup=builder.as_markup())
 
-    except Exception:
-        logger.exception("Claude API call failed (analyze_situation)")
+    except Exception as e:
+        logger.error(
+            "Claude API failed for user_id=%s feature=my_situation error=%s",
+            message.from_user.id,
+            type(e).__name__,
+        )
         await message.answer("⚠️ Произошла ошибка при связи с ИИ. Попробуйте позже.")
     finally:
         if _redis is not None and lock_key is not None:

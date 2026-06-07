@@ -33,17 +33,15 @@ class LoggingMiddleware(BaseMiddleware):
                 raw = event.text or ""
                 text_repr = (raw[:TRUNCATE_LEN] + "…") if len(raw) > TRUNCATE_LEN else raw
             logger.info(
-                "MSG | user_id=%s | username=@%s | text=%r",
+                "MSG | user_id=%s | text=%r",
                 user.id if user else None,
-                user.username if user else None,
                 text_repr,
             )
         elif isinstance(event, CallbackQuery):
             user = event.from_user
             logger.info(
-                "BTN | user_id=%s | username=@%s | data=%r",
+                "BTN | user_id=%s | data=%r",
                 user.id if user else None,
-                user.username if user else None,
                 event.data,
             )
         return await handler(event, data)
