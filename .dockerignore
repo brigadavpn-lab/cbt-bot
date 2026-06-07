@@ -1,0 +1,34 @@
+# Секреты — никогда не должны попадать в образ
+.env
+.env.local
+.env.production
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python кэш
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+
+# IDE и редакторы
+.vscode
+.idea
+*.swp
+*.swo
+
+# Тесты (не нужны в production-образе)
+tests/
+
+# Документация
+*.md
+docs/
+
+# Локальные артефакты
+*.log
+dist/
+build/
