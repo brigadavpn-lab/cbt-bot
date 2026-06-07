@@ -244,9 +244,9 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
             await session.refresh(new_task)
             task_id = new_task.id
 
-        # 4. Включаем состояние "Режим генератора" — это даст check_answer.py
-        # показать кнопку "🎲 Сгенерировать ещё" вместо "Следующая задача"
+        # 4. Включаем состояние "Режим генератора" и сохраняем task_id для FSM-проверки
         await state.set_state(GenState.active)
+        await state.update_data(current_task_id=task_id, answer_accepted=False)
 
         # 5. Рисуем кнопки
         builder = InlineKeyboardBuilder()
