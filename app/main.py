@@ -1,6 +1,7 @@
 import logging
+import secrets as py_secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from aiogram import Bot, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -43,8 +44,13 @@ async def lifespan(app: FastAPI):
         await bot.delete_webhook()
     await bot.session.close()
 
-# Создаем приложение FastAPI
-app = FastAPI(lifespan=lifespan)
+# Создаем приложение FastAPI (docs отключены в production)
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 from app.admin.router import router as admin_router
 app.include_router(admin_router)
@@ -52,13 +58,17 @@ app.include_router(admin_router)
 # Адрес, куда стучится Телеграм
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
-    # Проверка "пароля" от Телеграма (защита от хакеров)
-    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    if secret != settings.SECRET_TOKEN.get_secret_value():
-        return status.HTTP_401_UNAUTHORIZED
+    # Проверка секретного токена от Telegram (timing-safe сравнение)
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    expected = settings.SECRET_TOKEN.get_secret_value()
+    if not py_secrets.compare_digest(secret, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     # Обработка сообщения
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
     try:
         update = types.Update.model_validate(data, context={"bot": bot})
         await dp.feed_update(bot, update)
