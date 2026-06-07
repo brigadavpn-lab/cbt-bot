@@ -10,6 +10,7 @@ from app.bot.handlers import (
     base,
     broadcast,
     check_answer,
+    feedback,
     my_situation,
     progress,
     test_mode,
@@ -42,7 +43,8 @@ dp.callback_query.middleware(logging_mw)
 
 # --- РОУТЕРЫ (ПОРЯДОК ВАЖЕН) ---
 dp.include_router(base.router)          # 1. Меню /start, /cancel
-dp.include_router(broadcast.router)    # 2. Рассылка (только для admin)
+dp.include_router(feedback.router)     # 2. Обратная связь
+dp.include_router(broadcast.router)    # 3. Рассылка (только для admin)
 dp.include_router(training.router)     # 3. Выдача задач
 dp.include_router(check_answer.router)  # 3. Проверка ответов
 dp.include_router(progress.router)      # 4. Прогресс

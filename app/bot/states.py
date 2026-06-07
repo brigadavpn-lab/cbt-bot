@@ -17,3 +17,7 @@ class BroadcastState(StatesGroup):
     waiting_for_text = State()
     waiting_for_photo = State()
     confirm = State()
+
+
+class FeedbackState(StatesGroup):
+    waiting_for_message = State()
