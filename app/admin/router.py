@@ -1,8 +1,9 @@
 import asyncio
 import json
+import secrets as py_secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -223,11 +224,14 @@ async def tasks_page(request: Request, admin: str = Depends(verify_admin)):
 
 @router.get("/broadcast", response_class=HTMLResponse)
 async def broadcast_page(request: Request, admin: str = Depends(verify_admin)):
+    csrf_token = py_secrets.token_hex(32)
     response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": None,
+        "csrf_token": csrf_token,
     })
+    response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
 
 
@@ -236,8 +240,15 @@ async def broadcast_send(
     request: Request,
     text_msg: str = Form(..., alias="text"),
     personalize: str = Form(default=""),
+    csrf_token: str = Form(...),
+    csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
     admin: str = Depends(verify_admin),
 ):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
+    origin = request.headers.get("origin", "")
+    if origin and "localhost" not in origin and "127.0.0.1" not in origin:
+        raise HTTPException(status_code=403, detail="Forbidden origin")
     from app.main import bot
 
     async with AsyncSessionLocal() as s:
