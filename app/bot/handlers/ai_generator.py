@@ -7,10 +7,12 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import redis.asyncio as aioredis
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task, User
+from app.schemas.task_schema import GeneratedTaskSchema
 from sqlalchemy import text
 
 from app.bot.states import GenState
@@ -210,22 +212,25 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
                     logger.warning("Failed to log token usage for ai_generator")
 
                 raw = response.content[0].text.replace("```json", "").replace("```", "").strip()
-                task_data = json.loads(raw)
-
-                actual = task_data.get("correct_cognitive_distortion", "")
-                if actual not in DISTORTIONS:
-                    logger.warning(
-                        f"[generate_task] attempt={attempt+1}/{MAX_RETRIES} "
-                        f"invalid distortion: got={repr(actual)} expected={repr(chosen)}"
-                    )
-                    last_error = f"invalid distortion: {repr(actual)}"
+                try:
+                    raw_data = json.loads(raw)
+                    validated = GeneratedTaskSchema(**raw_data)
+                    task_data = validated.model_dump()
+                except json.JSONDecodeError as je:
+                    logger.warning("[generate_task] attempt=%d/%d JSON parse error", attempt + 1, MAX_RETRIES)
+                    last_error = str(je)
+                    task_data = None
+                    continue
+                except ValidationError as ve:
+                    logger.warning("[generate_task] attempt=%d/%d validation failed: %d errors", attempt + 1, MAX_RETRIES, ve.error_count())
+                    last_error = f"validation: {ve.error_count()} errors"
                     task_data = None
                     continue
 
                 break
 
             except json.JSONDecodeError as e:
-                logger.warning(f"[generate_task] attempt={attempt+1}/{MAX_RETRIES} JSON parse error: {e}")
+                logger.warning("[generate_task] attempt=%d/%d JSON parse error", attempt + 1, MAX_RETRIES)
                 last_error = str(e)
                 continue
 
