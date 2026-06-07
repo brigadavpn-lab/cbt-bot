@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     ADMIN_LOGIN: str = "admin"
     ADMIN_PASSWORD: SecretStr
 
+    AI_DAILY_LIMIT: int = 20
+    AI_LOCK_TTL: int = 30
+    MAX_SITUATION_LENGTH: int = 4000
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

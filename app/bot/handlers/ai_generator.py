@@ -1,10 +1,12 @@
 import json
 import logging
 import random
+from datetime import date
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+import redis.asyncio as aioredis
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
+_redis = aioredis.from_url(settings.REDIS_URL) if settings.REDIS_URL else None
 
 DISTORTIONS = [
     "Черно-белое мышление",
@@ -139,6 +142,29 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
         await callback.answer("AI не настроен!", show_alert=True)
         return
 
+    user_id = callback.from_user.id
+
+    if _redis is not None:
+        lock_key = f"ai_lock:{user_id}"
+        acquired = await _redis.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL)
+        if not acquired:
+            await callback.answer("⏳ Подождите, ваш запрос уже обрабатывается.", show_alert=True)
+            return
+
+        quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
+        count = await _redis.incr(quota_key)
+        if count == 1:
+            await _redis.expire(quota_key, 86400)
+        if count > settings.AI_DAILY_LIMIT:
+            await _redis.delete(lock_key)
+            await callback.answer(
+                f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра.",
+                show_alert=True,
+            )
+            return
+    else:
+        lock_key = None
+
     # 1. Просим подождать
     await callback.message.edit_text("🎲 <b>Придумываю ситуацию...</b>\nЭто займет пару секунд.")
 
@@ -249,3 +275,6 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
                 text="🎲 Попробовать снова", callback_data="generate_new_task"
             ).as_markup()
         )
+    finally:
+        if _redis is not None and lock_key is not None:
+            await _redis.delete(lock_key)

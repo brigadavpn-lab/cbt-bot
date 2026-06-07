@@ -31,8 +31,9 @@ else:
 dp = Dispatcher(storage=storage)
 
 # --- MIDDLEWARES ---
-# Antispam: не более 10 сообщений в минуту от одного пользователя (только Message)
+# Antispam: не более 10 событий в минуту от одного пользователя (Message и CallbackQuery)
 dp.message.middleware(RateLimitMiddleware(limit=10, period=60))
+dp.callback_query.middleware(RateLimitMiddleware(limit=10, period=60))
 
 # Action-logging для отладки: MSG/BTN с PII-redact в FSM waiting_for_situation
 logging_mw = LoggingMiddleware()
