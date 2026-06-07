@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.db.session import AsyncSessionLocal
 from app.db.models import User
+from app.utils.html import esc
 
 router = Router()
 
@@ -27,7 +28,7 @@ async def my_progress_handler(callback: types.CallbackQuery):
     xp_to_next = 100 - (user.xp % 100)
 
     text = (
-        f"👤 <b>Профиль:</b> {callback.from_user.full_name}\n\n"
+        f"👤 <b>Профиль:</b> {esc(callback.from_user.full_name)}\n\n"
         f"🏆 <b>Уровень:</b> {level}\n"
         f"⭐ <b>Очки (XP):</b> {user.xp}\n"
         f"🔥 <b>Серия побед:</b> {user.streak}\n\n"
@@ -53,7 +54,7 @@ async def back_to_menu_handler(callback: types.CallbackQuery):
     builder.adjust(1)
 
     text = (
-        f"Привет, <b>{callback.from_user.full_name}</b>! 👋\n\n"
+        f"Привет, <b>{esc(callback.from_user.full_name)}</b>! 👋\n\n"
         "Я — твой карманный психолог.\n"
         "Выбери действие:"
     )

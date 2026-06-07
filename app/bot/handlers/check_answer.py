@@ -2,6 +2,7 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task, User, Attempt
@@ -15,6 +16,17 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
     _, task_id_str, option_index_str = callback.data.split(":")
     task_id = int(task_id_str)
     option_index = int(option_index_str)
+
+    # FSM-проверка: task_id должен совпадать с тем, что выдан пользователю
+    fsm_data = await state.get_data()
+    if str(task_id) != str(fsm_data.get("current_task_id")):
+        await callback.answer("Это задание уже не актуально.", show_alert=True)
+        return
+    if fsm_data.get("answer_accepted"):
+        await callback.answer("Вы уже ответили на этот вопрос.", show_alert=True)
+        return
+    # Помечаем как принятый ДО обращения к БД (защита от параллельных нажатий)
+    await state.update_data(answer_accepted=True)
 
     async with AsyncSessionLocal() as session:
         # 1. Ищем задачу
@@ -68,8 +80,14 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
             chosen_code=selected_text,
             is_correct=is_correct
         )
-        session.add(attempt)
-        await session.commit()
+        try:
+            session.add(attempt)
+            await session.flush()
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            await callback.answer("Вы уже ответили на этот вопрос.", show_alert=True)
+            return
 
     # --- ЛОГИКА КНОПОК (ГЕНЕРАТОР или ТРЕНИРОВКА) ---
     builder = InlineKeyboardBuilder()

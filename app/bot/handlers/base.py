@@ -4,13 +4,14 @@ from aiogram import F, Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.sql import func
 
 from app.bot.states import BroadcastState
 from app.core.config import settings
-from app.db.models import User
+from app.db.models import Attempt, TokenUsage, User
 from app.db.session import AsyncSessionLocal
+from app.utils.html import esc
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -62,7 +63,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await session.commit()
 
     text = (
-        f"Привет, <b>{message.from_user.full_name}</b>! 👋\n\n"
+        f"Привет, <b>{esc(message.from_user.full_name)}</b>! 👋\n\n"
         "Я — <b>CBT-Gym</b>, твой персональный тренажер по работе с автоматическими мыслями.\n"
         "Я помогаю находить когнитивные искажения — ошибки в мыслях, которые вызывают тревогу и стресс.\n\n"
         "💪 <b>Как мы будем тренироваться?</b>\n"
@@ -81,8 +82,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 chat_id=settings.ADMIN_TG_ID,
                 text=(
                     "👤 <b>Новый пользователь!</b>\n\n"
-                    f"Имя: {message.from_user.full_name}\n"
-                    f"Username: @{message.from_user.username}\n"
+                    f"Имя: {esc(message.from_user.full_name)}\n"
+                    f"Username: @{esc(message.from_user.username)}\n"
                     f"ID: {tg_id}"
                 ),
                 parse_mode="HTML",
@@ -124,3 +125,29 @@ async def admin_broadcast_btn(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BroadcastState.waiting_for_text)
     await callback.message.answer("✍️ Введите текст рассылки:\n\nДля отмены отправьте /cancel")
     await callback.answer()
+
+
+@router.message(Command("deletedata"))
+async def cmd_delete_data(message: types.Message, state: FSMContext):
+    await state.clear()
+    tg_id = message.from_user.id
+    async with AsyncSessionLocal() as session:
+        user = (
+            await session.execute(select(User).where(User.tg_id == tg_id))
+        ).scalar_one_or_none()
+        if user:
+            await session.execute(delete(Attempt).where(Attempt.user_id == user.id))
+            await session.execute(delete(TokenUsage).where(TokenUsage.user_id == user.id))
+            user.xp = 0
+            user.level = 1
+            user.streak = 0
+            user.max_streak = 0
+            user.full_name = None
+            await session.commit()
+    await message.answer(
+        "✅ Ваши данные удалены:\n"
+        "• История ответов\n"
+        "• Статистика использования AI\n"
+        "• Имя и прогресс\n\n"
+        "Запись о вашем аккаунте сохранена для корректной работы бота."
+    )

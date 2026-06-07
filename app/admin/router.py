@@ -1,8 +1,9 @@
 import asyncio
 import json
+import secrets as py_secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -10,10 +11,19 @@ from sqlalchemy import text
 from app.admin.auth import verify_admin
 from app.db.models import Attempt, Task, TokenUsage, User
 from app.db.session import AsyncSessionLocal
+from app.utils.html import esc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/admin/templates")
 templates.env.globals["now"] = datetime.utcnow()
+
+
+def _add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ─── Дашборд ────────────────────────────────────────────────────────────────
@@ -59,7 +69,7 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
         )).fetchall()
         top3_max = top3[0][1] if top3 else 1
 
-    return templates.TemplateResponse("dashboard.html", {
+    response = templates.TemplateResponse("dashboard.html", {
         "request": request,
         "active_page": "dashboard",
         "total_users": total_users,
@@ -75,6 +85,7 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
         "top3": top3,
         "top3_max": top3_max,
     })
+    return _add_security_headers(response)
 
 
 # ─── Пользователи ───────────────────────────────────────────────────────────
@@ -119,11 +130,12 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
         for r in rows
     ]
 
-    return templates.TemplateResponse("users.html", {
+    response = templates.TemplateResponse("users.html", {
         "request": request,
         "active_page": "users",
         "users": users,
     })
+    return _add_security_headers(response)
 
 
 # ─── Токены ─────────────────────────────────────────────────────────────────
@@ -161,7 +173,7 @@ async def tokens_page(request: Request, admin: str = Depends(verify_admin)):
 
     features = {r[0]: {"cnt": r[1], "input": r[2], "output": r[3]} for r in by_feature}
 
-    return templates.TemplateResponse("tokens.html", {
+    response = templates.TemplateResponse("tokens.html", {
         "request": request,
         "active_page": "tokens",
         "chart_labels": chart_labels,
@@ -170,6 +182,7 @@ async def tokens_page(request: Request, admin: str = Depends(verify_admin)):
         "features": features,
         "top_users": top_users,
     })
+    return _add_security_headers(response)
 
 
 # ─── Задачи ─────────────────────────────────────────────────────────────────
@@ -193,7 +206,7 @@ async def tasks_page(request: Request, admin: str = Depends(verify_admin)):
     labels = json.dumps([r[0] or "Неизвестно" for r in distrib])
     data = json.dumps([int(r[1]) for r in distrib])
 
-    return templates.TemplateResponse("tasks.html", {
+    response = templates.TemplateResponse("tasks.html", {
         "request": request,
         "active_page": "tasks",
         "chart_labels": labels,
@@ -204,17 +217,22 @@ async def tasks_page(request: Request, admin: str = Depends(verify_admin)):
         "inactive_tasks": total_tasks - active_tasks,
         "used_tasks": used_tasks,
     })
+    return _add_security_headers(response)
 
 
 # ─── Рассылка ────────────────────────────────────────────────────────────────
 
 @router.get("/broadcast", response_class=HTMLResponse)
 async def broadcast_page(request: Request, admin: str = Depends(verify_admin)):
-    return templates.TemplateResponse("broadcast.html", {
+    csrf_token = py_secrets.token_hex(32)
+    response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": None,
+        "csrf_token": csrf_token,
     })
+    response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
+    return _add_security_headers(response)
 
 
 @router.post("/broadcast/send", response_class=HTMLResponse)
@@ -222,8 +240,15 @@ async def broadcast_send(
     request: Request,
     text_msg: str = Form(..., alias="text"),
     personalize: str = Form(default=""),
+    csrf_token: str = Form(...),
+    csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
     admin: str = Depends(verify_admin),
 ):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
+    origin = request.headers.get("origin", "")
+    if origin and "localhost" not in origin and "127.0.0.1" not in origin:
+        raise HTTPException(status_code=403, detail="Forbidden origin")
     from app.main import bot
 
     async with AsyncSessionLocal() as s:
@@ -238,7 +263,7 @@ async def broadcast_send(
     for tg_id, full_name in rows:
         msg = text_msg
         if do_personalize and "{name}" in msg:
-            name = full_name or "Пользователь"
+            name = esc(full_name or "Пользователь")
             msg = msg.replace("{name}", name)
         try:
             await bot.send_message(chat_id=tg_id, text=msg, parse_mode="HTML")
@@ -247,8 +272,9 @@ async def broadcast_send(
             errors += 1
         await asyncio.sleep(0.05)
 
-    return templates.TemplateResponse("broadcast.html", {
+    response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": {"sent": sent, "errors": errors},
     })
+    return _add_security_headers(response)

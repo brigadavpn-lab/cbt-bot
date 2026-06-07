@@ -1,15 +1,20 @@
 import logging
 import re
+from datetime import date
 
 from anthropic import AsyncAnthropic
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+import redis.asyncio as aioredis
 
 from app.core.config import settings
 from app.bot.states import UserState
 from app.db.session import AsyncSessionLocal
 from app.db.models import User
+from app.utils.html import esc
+
+_redis = aioredis.from_url(settings.REDIS_URL) if settings.REDIS_URL else None
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -59,7 +64,9 @@ async def start_my_situation(callback: types.CallbackQuery, state: FSMContext):
         "Опишите, что случилось, и какие мысли у вас возникли.\n"
         "<i>Пример: Начальник косо посмотрел, наверное, хочет меня уволить.</i>\n\n"
         "✍️ <b>Напишите вашу ситуацию ниже:</b>\n\n"
-        "<i>Чтобы отменить — напишите /cancel</i>"
+        "<i>Чтобы отменить — напишите /cancel</i>\n\n"
+        "⚠️ Текст вашей ситуации будет обработан сервисом Anthropic Claude.\n"
+        "⚠️ Бот не является психологической помощью и не заменяет специалиста."
     )
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Отмена", callback_data="back_to_menu")
@@ -75,8 +82,40 @@ async def process_situation(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
     user_text = message.text
+
+    if len(user_text) > settings.MAX_SITUATION_LENGTH:
+        await message.answer(
+            f"⚠️ Текст слишком длинный. Максимум {settings.MAX_SITUATION_LENGTH} символов "
+            f"(у вас {len(user_text)})."
+        )
+        await state.clear()
+        return
+
+    user_id = message.from_user.id
+
+    if _redis is not None:
+        lock_key = f"ai_lock:{user_id}"
+        acquired = await _redis.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL)
+        if not acquired:
+            await message.answer("⏳ Подождите, ваш запрос уже обрабатывается.")
+            return
+
+        quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
+        count = await _redis.incr(quota_key)
+        if count == 1:
+            await _redis.expire(quota_key, 86400)
+        if count > settings.AI_DAILY_LIMIT:
+            await _redis.delete(lock_key)
+            await message.answer(
+                f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра."
+            )
+            await state.clear()
+            return
+    else:
+        lock_key = None
+
+    await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     try:
         response = await client.messages.create(
@@ -105,10 +144,11 @@ async def process_situation(message: types.Message, state: FSMContext):
         except Exception:
             logger.warning("Failed to log token usage for my_situation")
 
-        # Убираем Markdown разметку
+        # Убираем Markdown разметку, затем экранируем для HTML-режима
         ai_answer = re.sub(r'\*+', '', ai_answer)
         ai_answer = re.sub(r'_+', '', ai_answer)
         ai_answer = re.sub(r'`+', '', ai_answer)
+        ai_answer = esc(ai_answer)
 
         builder = InlineKeyboardBuilder()
         builder.button(text="🔄 Разобрать другую ситуацию", callback_data="my_situation")
@@ -117,8 +157,15 @@ async def process_situation(message: types.Message, state: FSMContext):
 
         await message.answer(ai_answer, reply_markup=builder.as_markup())
 
-    except Exception:
-        logger.exception("Claude API call failed (analyze_situation)")
+    except Exception as e:
+        logger.error(
+            "Claude API failed for user_id=%s feature=my_situation error=%s",
+            message.from_user.id,
+            type(e).__name__,
+        )
         await message.answer("⚠️ Произошла ошибка при связи с ИИ. Попробуйте позже.")
+    finally:
+        if _redis is not None and lock_key is not None:
+            await _redis.delete(lock_key)
 
     await state.clear()

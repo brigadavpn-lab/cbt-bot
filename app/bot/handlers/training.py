@@ -1,4 +1,5 @@
 from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
 
@@ -11,7 +12,7 @@ router = Router()
 
 # Этот декоратор говорит: "Срабатывай, когда нажата кнопка с data='start_training'"
 @router.callback_query(F.data == "start_training")
-async def start_training_handler(callback: types.CallbackQuery):
+async def start_training_handler(callback: types.CallbackQuery, state: FSMContext):
     # 1. Открываем соединение с базой
     async with AsyncSessionLocal() as session:
         # 2. Делаем запрос: "Дай мне 1 задачу, выбранную случайно"
@@ -28,7 +29,10 @@ async def start_training_handler(callback: types.CallbackQuery):
     # 4. Формируем клавиатуру с вариантами ответов
     # Данные из базы лежат в task.payload (там наш JSON: situation, options...)
     task_data = task.payload
-    
+
+    # Сохраняем task_id в FSM для защиты от повторного ответа
+    await state.update_data(current_task_id=task.id, answer_accepted=False)
+
     builder = InlineKeyboardBuilder()
     
     # Создаем кнопки для каждого варианта ответа
