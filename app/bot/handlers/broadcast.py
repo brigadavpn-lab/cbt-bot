@@ -95,20 +95,21 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await state.clear()
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User.tg_id))
-        tg_ids = result.scalars().all()
+        result = await session.execute(select(User.tg_id, User.full_name))
+        users = result.all()
 
     await callback.message.answer("✍️ Начинаю рассылку...")
     await callback.answer()
 
     sent = 0
     failed = 0
-    for tg_id in tg_ids:
+    for tg_id, full_name in users:
+        personalized = text.replace("{name}", full_name or "Пользователь")
         try:
             if photo_id:
-                await bot.send_photo(tg_id, photo=photo_id, caption=text)
+                await bot.send_photo(tg_id, photo=photo_id, caption=personalized)
             else:
-                await bot.send_message(tg_id, text=text)
+                await bot.send_message(tg_id, text=personalized)
             sent += 1
         except Exception:
             failed += 1
