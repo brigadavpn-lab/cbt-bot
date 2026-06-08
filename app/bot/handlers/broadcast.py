@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, F, Router, types
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -102,7 +103,9 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await callback.answer()
 
     sent = 0
-    failed = 0
+    blocked = 0    # 403 — пользователь заблокировал бота
+    not_found = 0  # 400 — аккаунт удалён или чат недоступен
+    failed = 0     # прочие ошибки
     for tg_id, full_name in users:
         personalized = text.replace("{name}", full_name or "Пользователь")
         try:
@@ -111,13 +114,29 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
             else:
                 await bot.send_message(tg_id, text=personalized)
             sent += 1
-        except Exception:
+        except TelegramForbiddenError:
+            blocked += 1
+            logger.info('broadcast: user %s blocked the bot', tg_id)
+        except TelegramBadRequest as e:
+            not_found += 1
+            logger.info('broadcast: chat not found for user %s: %s', tg_id, e.message)
+        except Exception as e:
             failed += 1
+            logger.error('broadcast: unexpected error for user %s: %s', tg_id, type(e).__name__)
         await asyncio.sleep(0.05)
 
-    await callback.message.answer(
-        f"✅ Рассылка завершена.\nОтправлено: {sent}\nОшибок: {failed}"
-    )
+    lines = ['✅ Рассылка завершена.\n']
+    lines.append(f'📨 Отправлено: {sent}')
+    if blocked:
+        lines.append(f'📨 Заблокировали бота: {blocked}')
+    if not_found:
+        lines.append(f'📨 Аккаунт не найден: {not_found}')
+    if failed:
+        lines.append(f'📨 Другие ошибки: {failed}')
+    total_errors = blocked + not_found + failed
+    if total_errors:
+        lines.append(f'\nВсего ошибок: {total_errors}')
+    await callback.message.answer('\n'.join(lines))
 
 
 @router.callback_query(
