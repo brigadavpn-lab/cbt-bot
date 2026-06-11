@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     AI_DAILY_LIMIT: int = 20
     AI_LOCK_TTL: int = 30
     MAX_SITUATION_LENGTH: int = 4000
+    MONTHLY_SPEND_ALERT_USD: float = 25.0
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
