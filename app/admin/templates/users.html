@@ -16,6 +16,7 @@
                 <th>Последняя активность</th>
                 <th>Запросов к ИИ</th>
                 <th>Токенов</th>
+                <th>Статус</th>
             </tr>
         </thead>
         <tbody>
@@ -49,6 +50,23 @@
                 </td>
                 <td>{{ u.total_requests }}</td>
                 <td>{{ "{:,}".format(u.total_tokens | int) }}</td>
+                <td>
+                    {% if u.is_blocked %}
+                    <form method="post" action="/admin/users/{{ u.id }}/unblock">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" style="background:#00C851;color:#000;border:none;padding:4px 10px;cursor:pointer;border-radius:4px;font-size:12px;">
+                            ✅ Разблокировать
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="/admin/users/{{ u.id }}/block">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" style="background:#FF4444;color:#fff;border:none;padding:4px 10px;cursor:pointer;border-radius:4px;font-size:12px;">
+                            🚫 Заблокировать
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

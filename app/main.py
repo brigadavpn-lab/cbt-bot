@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 
 from app.core.config import settings
 from app.bot.dispatcher import dp
+from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
 # Настройка логирования (чтобы видеть ошибки в консоли)
 logging.basicConfig(
@@ -26,6 +27,7 @@ bot = Bot(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- СТАРТ ---
+    setup_scheduler()
     # Если указан WEBHOOK_URL, говорим Телеграму слать сообщения туда
     if settings.WEBHOOK_URL:
         webhook_endpoint = f"{settings.WEBHOOK_URL}/webhook"
@@ -37,8 +39,9 @@ async def lifespan(app: FastAPI):
         )
     
     yield # Тут бот работает...
-    
+
     # --- СТОП ---
+    shutdown_scheduler()
     # При выключении удаляем вебхук
     if settings.WEBHOOK_URL:
         await bot.delete_webhook()
