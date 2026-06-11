@@ -16,6 +16,7 @@ from app.bot.handlers import (
     test_mode,
     training,
 )
+from app.bot.middleware.block_check import BlockCheckMiddleware
 from app.bot.middleware.logging_mw import LoggingMiddleware
 from app.bot.middleware.rate_limit import RateLimitMiddleware
 from app.core.config import settings
@@ -32,6 +33,11 @@ else:
 dp = Dispatcher(storage=storage)
 
 # --- MIDDLEWARES ---
+# Блокировка: заблокированный пользователь получает отказ до любой другой обработки
+block_check_mw = BlockCheckMiddleware()
+dp.message.middleware(block_check_mw)
+dp.callback_query.middleware(block_check_mw)
+
 # Antispam: не более 10 событий в минуту от одного пользователя (Message и CallbackQuery)
 dp.message.middleware(RateLimitMiddleware(limit=10, period=60))
 dp.callback_query.middleware(RateLimitMiddleware(limit=10, period=60))

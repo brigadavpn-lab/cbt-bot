@@ -4,7 +4,7 @@ import secrets as py_secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
@@ -97,7 +97,8 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
             "SELECT u.id, u.tg_id, u.full_name, u.level, u.xp, u.streak, "
             "       u.created_at, u.last_active_at, "
             "       COUNT(t.id) as total_requests, "
-            "       COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens "
+            "       COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens, "
+            "       u.is_blocked "
             "FROM users u "
             "LEFT JOIN token_usage t ON t.user_id = u.id "
             "GROUP BY u.id "
@@ -126,16 +127,56 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
             "created_at": r[6], "last_active_at": r[7],
             "total_requests": r[8], "total_tokens": r[9],
             "color": activity_color(r[7]),
+            "is_blocked": r[10],
         }
         for r in rows
     ]
 
+    csrf_token = py_secrets.token_hex(32)
     response = templates.TemplateResponse("users.html", {
         "request": request,
         "active_page": "users",
         "users": users,
+        "csrf_token": csrf_token,
     })
+    response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
+
+
+@router.post("/users/{user_id}/block", response_class=HTMLResponse)
+async def block_user(
+    user_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
+    admin: str = Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, user_id)
+        if user:
+            user.is_blocked = True
+            await session.commit()
+    return RedirectResponse("/admin/users", status_code=303)
+
+
+@router.post("/users/{user_id}/unblock", response_class=HTMLResponse)
+async def unblock_user(
+    user_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
+    admin: str = Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, user_id)
+        if user:
+            user.is_blocked = False
+            await session.commit()
+    return RedirectResponse("/admin/users", status_code=303)
 
 
 # ─── Токены ─────────────────────────────────────────────────────────────────
