@@ -322,9 +322,12 @@ async def broadcast_send(
             errors += 1
         await asyncio.sleep(0.05)
 
+    new_csrf = py_secrets.token_hex(32)
     response = templates.TemplateResponse("broadcast.html", {
         "request": request,
         "active_page": "broadcast",
         "result": {"sent": sent, "errors": errors},
+        "csrf_token": new_csrf,
     })
+    response.set_cookie("csrf_token", new_csrf, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
