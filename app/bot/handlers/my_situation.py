@@ -10,6 +10,7 @@ import redis.asyncio as aioredis
 
 from app.core.config import settings
 from app.bot.states import UserState
+from app.bot.constants.crisis import CRISIS_KEYWORDS, CRISIS_RESPONSE
 from app.db.session import AsyncSessionLocal
 from app.db.models import User
 from app.utils.html import esc
@@ -83,6 +84,20 @@ async def process_situation(message: types.Message, state: FSMContext):
         return
 
     user_text = message.text
+
+    user_text_lower = user_text.lower()
+    is_crisis = any(keyword in user_text_lower for keyword in CRISIS_KEYWORDS)
+    if is_crisis:
+        await state.clear()
+        builder = InlineKeyboardBuilder()
+        builder.button(text='💙 В главное меню', callback_data='back_to_menu')
+        await message.answer(
+            CRISIS_RESPONSE,
+            parse_mode='HTML',
+            reply_markup=builder.as_markup()
+        )
+        logger.warning('crisis_routing: triggered for user_id=%s', message.from_user.id)
+        return
 
     if len(user_text) > settings.MAX_SITUATION_LENGTH:
         await message.answer(
