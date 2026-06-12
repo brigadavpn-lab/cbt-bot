@@ -28,7 +28,7 @@ class GeneratedTaskSchema(BaseModel):
     thought: str = Field(min_length=5, max_length=300)
     correct_cognitive_distortion: str
     options: list[str] = Field(min_length=4, max_length=4)
-    explanation: str = Field(min_length=5, max_length=200)
+    explanation: str = Field(min_length=5, max_length=400)
 
     model_config = {"extra": "forbid"}
 
