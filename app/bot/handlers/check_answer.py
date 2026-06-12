@@ -23,7 +23,7 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Это задание уже не актуально.", show_alert=True)
         return
     if fsm_data.get("answer_accepted"):
-        await callback.answer("Вы уже ответили на этот вопрос.", show_alert=True)
+        await callback.answer("Ответ уже принят, немного подождите...", show_alert=True)
         return
     # Помечаем как принятый ДО обращения к БД (защита от параллельных нажатий)
     await state.update_data(answer_accepted=True)
@@ -39,7 +39,7 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         options = task.payload["options"]
         correct_option = task.payload["correct_cognitive_distortion"]
         explanation = task.payload["explanation"]
-        
+
         # Защита от выхода за границы массива
         if option_index >= len(options):
             await callback.answer("Ошибка данных кнопки")
@@ -62,12 +62,12 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         if is_correct:
             user.xp += 10
             user.streak += 1
-            
+
             # Проверяем рекорд (max_streak может быть None у старых юзеров, поэтому (user.max_streak or 0))
             current_max = user.max_streak if user.max_streak else 0
             if user.streak > current_max:
                 user.max_streak = user.streak
-            
+
             header = "✅ <b>Верно!</b>"
         else:
             user.streak = 0
@@ -86,15 +86,15 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            await callback.answer("Вы уже ответили на этот вопрос.", show_alert=True)
+            await callback.answer("Ответ уже принят, немногоподождите...", show_alert=True)
             return
 
     # --- ЛОГИКА КНОПОК (ГЕНЕРАТОР или ТРЕНИРОВКА) ---
     builder = InlineKeyboardBuilder()
-    
+
     # Узнаем, в каком режиме пользователь
     current_state = await state.get_state()
-    
+
     if current_state == GenState.active:
         # Режим Генератора
         builder.button(text="🎲 Сгенерировать еще", callback_data="generate_new_task")
@@ -104,7 +104,7 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
 
     builder.button(text="🔙 В меню", callback_data="back_to_menu")
     builder.adjust(1)
-    
+
     text = (
         f"{header}\n\n"
         f"📖 <b>Пояснение:</b>\n{explanation}\n\n"
@@ -115,5 +115,5 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
     except Exception:
         await callback.message.answer(text, reply_markup=builder.as_markup())
-        
+
     await callback.answer()
