@@ -298,14 +298,12 @@ async def broadcast_send(
 ):
     if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
         raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
-    origin = request.headers.get("origin", "")
-    if origin and "localhost" not in origin and "127.0.0.1" not in origin:
-        raise HTTPException(status_code=403, detail="Forbidden origin")
+
     from app.main import bot
 
     async with AsyncSessionLocal() as s:
         rows = (await s.execute(text(
-            "SELECT tg_id, full_name FROM users"
+            "SELECT tg_id, full_name FROM users WHERE is_blocked = false"
         ))).fetchall()
 
     sent = 0

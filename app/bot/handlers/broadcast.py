@@ -96,7 +96,7 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await state.clear()
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User.tg_id, User.full_name))
+        result = await session.execute(select(User.tg_id, User.full_name).where(User.is_blocked == False))
         users = result.all()
 
     await callback.message.answer("✍️ Начинаю рассылку...")
