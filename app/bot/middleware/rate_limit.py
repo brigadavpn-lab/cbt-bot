@@ -37,7 +37,7 @@ class RateLimitMiddleware(BaseMiddleware):
 
         if blocked:
             try:
-                await event.answer("⏳ Не так быстро! Подожди немного.")
+                await event.answer("⏳ Не так быстро! Подожди немного.", show_alert=True)
             except Exception:
                 pass
             return

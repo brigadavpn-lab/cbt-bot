@@ -38,9 +38,9 @@ block_check_mw = BlockCheckMiddleware()
 dp.message.middleware(block_check_mw)
 dp.callback_query.middleware(block_check_mw)
 
-# Antispam: не более 10 событий в минуту от одного пользователя (Message и CallbackQuery)
-dp.message.middleware(RateLimitMiddleware(limit=10, period=60))
-dp.callback_query.middleware(RateLimitMiddleware(limit=10, period=60))
+# Antispam: не более 30 событий в минуту от одного пользователя (Message и CallbackQuery)
+dp.message.middleware(RateLimitMiddleware(limit=30, period=60))
+dp.callback_query.middleware(RateLimitMiddleware(limit=30, period=60))
 
 # Action-logging для отладки: MSG/BTN с PII-redact в FSM waiting_for_situation
 logging_mw = LoggingMiddleware()
