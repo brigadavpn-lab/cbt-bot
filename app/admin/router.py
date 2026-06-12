@@ -1,7 +1,7 @@
 import asyncio
 import json
 import secrets as py_secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,6 +16,17 @@ from app.utils.html import esc
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="app/admin/templates")
 templates.env.globals["now"] = datetime.utcnow()
+
+
+def to_moscow(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt + timedelta(hours=3)
+
+
+templates.env.filters['moscow'] = to_moscow
 
 
 def _add_security_headers(response):

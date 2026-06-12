@@ -38,12 +38,12 @@
                 <td>{{ u.streak }}</td>
                 <td style="color:var(--dark-platinum)">
                     {% if u.created_at %}
-                        {{ u.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        {{ (u.created_at | moscow).strftime('%d.%m.%Y %H:%M') }}
                     {% else %}—{% endif %}
                 </td>
                 <td>
                     {% if u.last_active_at %}
-                        <span class="badge-{{ u.color }}">{{ u.last_active_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                        <span class="badge-{{ u.color }}">{{ (u.last_active_at | moscow).strftime('%d.%m.%Y %H:%M') }}</span>
                     {% else %}
                         <span class="badge-red">никогда</span>
                     {% endif %}
