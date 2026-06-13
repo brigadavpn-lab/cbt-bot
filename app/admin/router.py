@@ -1,7 +1,7 @@
 import asyncio
 import json
 import secrets as py_secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 from typing import Optional
 
@@ -124,10 +124,12 @@ async def users_page(
         where_clauses = []
         if date_from:
             where_clauses.append("u.last_active_at >= :date_from")
-            params["date_from"] = date_from
+            params["date_from"] = date.fromisoformat(date_from)
         if date_to:
-            where_clauses.append("u.last_active_at < (:date_to::date + interval '1 day')")
-            params["date_to"] = date_to
+            from datetime import timedelta
+            date_to_end = date.fromisoformat(date_to) + timedelta(days=1)
+            where_clauses.append("u.last_active_at < :date_to_end")
+            params["date_to_end"] = date_to_end
         if where_clauses:
             sql += "WHERE " + " AND ".join(where_clauses) + " "
         sql += "GROUP BY u.id ORDER BY u.last_active_at DESC NULLS LAST"
