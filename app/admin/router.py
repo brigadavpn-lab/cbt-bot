@@ -1,7 +1,7 @@
 import asyncio
 import json
 import secrets as py_secrets
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
@@ -124,10 +124,10 @@ async def users_page(
     params: dict = {}
     if date_from:
         where_clauses.append("u.created_at >= :date_from")
-        params["date_from"] = date_from
+        params["date_from"] = date.fromisoformat(date_from)
     if date_to:
         where_clauses.append("u.created_at < :date_to_excl")
-        params["date_to_excl"] = date_to + " 23:59:59"
+        params["date_to_excl"] = date.fromisoformat(date_to) + timedelta(days=1)
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
     having_clause = "HAVING (u.xp > 0 OR COUNT(t.id) > 0)" if active_only else ""
