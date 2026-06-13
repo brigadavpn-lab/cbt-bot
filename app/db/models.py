@@ -24,6 +24,7 @@ class User(Base):
     full_name = Column(String(512), nullable=True)                          # Имя из Telegram
     last_active_at = Column(DateTime(timezone=True), nullable=True)         # Последняя активность
     is_blocked = Column(Boolean, default=False, nullable=False)
+    is_age_confirmed = Column(Boolean, default=False, nullable=False)
 
 # 3. Таблица задач (CBT упражнения)
 class Task(Base):
