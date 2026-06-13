@@ -102,19 +102,37 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
 # ─── Пользователи ───────────────────────────────────────────────────────────
 
 @router.get("/users", response_class=HTMLResponse)
-async def users_page(request: Request, admin: str = Depends(verify_admin)):
+async def users_page(
+    request: Request,
+    admin: str = Depends(verify_admin),
+    active_only: int = 0,
+    sort: str = "",
+    order: str = "desc",
+):
+    _SORT_COLS = {
+        "xp": "u.xp",
+        "requests": "total_requests",
+        "tokens": "total_tokens",
+    }
+    sort_col = _SORT_COLS.get(sort, "u.last_active_at")
+    sort_dir = "ASC" if order == "asc" else "DESC"
+    having_clause = "HAVING (u.xp > 0 OR COUNT(t.id) > 0)" if active_only else ""
+
+    query = (
+        "SELECT u.id, u.tg_id, u.full_name, u.level, u.xp, u.streak, "
+        "       u.created_at, u.last_active_at, "
+        "       COUNT(t.id) as total_requests, "
+        "       COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens, "
+        "       u.is_blocked "
+        "FROM users u "
+        "LEFT JOIN token_usage t ON t.user_id = u.id "
+        "GROUP BY u.id "
+        f"{having_clause} "
+        f"ORDER BY {sort_col} {sort_dir} NULLS LAST"
+    )
+
     async with AsyncSessionLocal() as s:
-        rows = (await s.execute(text(
-            "SELECT u.id, u.tg_id, u.full_name, u.level, u.xp, u.streak, "
-            "       u.created_at, u.last_active_at, "
-            "       COUNT(t.id) as total_requests, "
-            "       COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens, "
-            "       u.is_blocked "
-            "FROM users u "
-            "LEFT JOIN token_usage t ON t.user_id = u.id "
-            "GROUP BY u.id "
-            "ORDER BY u.last_active_at DESC NULLS LAST"
-        ))).fetchall()
+        rows = (await s.execute(text(query))).fetchall()
 
     now = datetime.now(timezone.utc)
 
@@ -149,6 +167,9 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
         "active_page": "users",
         "users": users,
         "csrf_token": csrf_token,
+        "active_only": active_only,
+        "sort": sort,
+        "order": order,
     })
     response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)

@@ -2,6 +2,26 @@
 {% block content %}
 <h1>Пользователи <span style="font-size:16px;color:var(--dark-platinum);font-weight:normal">всего: {{ users|length }}</span></h1>
 
+{% macro sort_th(label, col) %}
+  {% if sort == col %}
+    {% set next_order = 'asc' if order == 'desc' else 'desc' %}
+    {% set arrow = ' ↑' if order == 'asc' else ' ↓' %}
+  {% else %}
+    {% set next_order = 'desc' %}
+    {% set arrow = '' %}
+  {% endif %}
+  <th><a href="/admin/users?sort={{ col }}&order={{ next_order }}{% if active_only %}&active_only=1{% endif %}" style="color:inherit;text-decoration:none;white-space:nowrap">{{ label }}{{ arrow }}</a></th>
+{% endmacro %}
+
+<form method="get" action="/admin/users" style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  {% if sort %}<input type="hidden" name="order" value="{{ order }}">{% endif %}
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+    <input type="checkbox" name="active_only" value="1" {% if active_only %}checked{% endif %} onchange="this.form.submit()">
+    Только активные
+  </label>
+</form>
+
 <div class="card" style="padding:0;overflow:hidden">
     <table>
         <thead>
@@ -10,12 +30,12 @@
                 <th>Имя</th>
                 <th>Telegram ID</th>
                 <th>Уровень</th>
-                <th>XP</th>
+                {{ sort_th('XP', 'xp') }}
                 <th>Серия</th>
                 <th>Зарегистрирован</th>
                 <th>Последняя активность</th>
-                <th>Запросов к ИИ</th>
-                <th>Токенов</th>
+                {{ sort_th('Запросов к ИИ', 'requests') }}
+                {{ sort_th('Токенов', 'tokens') }}
                 <th>Статус</th>
             </tr>
         </thead>
