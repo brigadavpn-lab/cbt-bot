@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from datetime import date
@@ -14,8 +15,6 @@ from app.bot.constants.crisis import CRISIS_KEYWORDS, CRISIS_RESPONSE
 from app.db.session import AsyncSessionLocal
 from app.db.models import User
 from app.utils.html import esc
-
-_redis = aioredis.from_url(settings.REDIS_URL) if settings.REDIS_URL else None
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -109,26 +108,44 @@ async def process_situation(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
 
-    if _redis is not None:
-        lock_key = f"ai_lock:{user_id}"
-        acquired = await _redis.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL)
-        if not acquired:
-            await message.answer("⏳ Подождите, ваш запрос уже обрабатывается.")
-            return
+    if not settings.REDIS_URL:
+        logger.error("AI function disabled: REDIS_URL not configured")
+        await message.answer("⚠️ AI-функция временно недоступна. Попробуйте позже.")
+        await state.clear()
+        return
 
-        quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
-        count = await _redis.incr(quota_key)
-        if count == 1:
-            await _redis.expire(quota_key, 86400)
-        if count > settings.AI_DAILY_LIMIT:
-            await _redis.delete(lock_key)
-            await message.answer(
-                f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра."
-            )
-            await state.clear()
-            return
-    else:
-        lock_key = None
+    redis_client = aioredis.from_url(settings.REDIS_URL)
+    lock_key = f"ai_lock:{user_id}"
+
+    try:
+        acquired = await asyncio.wait_for(
+            redis_client.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL),
+            timeout=2.0,
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.error("Redis unavailable for AI quota: %s", type(e).__name__)
+        await message.answer("⚠️ AI-функция временно недоступна. Попробуйте позже.")
+        await redis_client.aclose()
+        await state.clear()
+        return
+
+    if not acquired:
+        await message.answer("⏳ Подождите, ваш запрос уже обрабатывается.")
+        await redis_client.aclose()
+        return
+
+    quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
+    count = await redis_client.incr(quota_key)
+    if count == 1:
+        await redis_client.expire(quota_key, 86400)
+    if count > settings.AI_DAILY_LIMIT:
+        await redis_client.delete(lock_key)
+        await message.answer(
+            f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра."
+        )
+        await redis_client.aclose()
+        await state.clear()
+        return
 
     await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
@@ -180,7 +197,10 @@ async def process_situation(message: types.Message, state: FSMContext):
         )
         await message.answer("⚠️ Произошла ошибка при связи с ИИ. Попробуйте позже.")
     finally:
-        if _redis is not None and lock_key is not None:
-            await _redis.delete(lock_key)
+        try:
+            await redis_client.delete(lock_key)
+            await redis_client.aclose()
+        except Exception:
+            pass
 
     await state.clear()

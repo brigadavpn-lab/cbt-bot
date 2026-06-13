@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import random
@@ -21,7 +22,6 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
-_redis = aioredis.from_url(settings.REDIS_URL) if settings.REDIS_URL else None
 
 DISTORTIONS = [
     "Черно-белое мышление",
@@ -146,26 +146,42 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
 
     user_id = callback.from_user.id
 
-    if _redis is not None:
-        lock_key = f"ai_lock:{user_id}"
-        acquired = await _redis.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL)
-        if not acquired:
-            await callback.answer("⏳ Подождите, ваш запрос уже обрабатывается.", show_alert=True)
-            return
+    if not settings.REDIS_URL:
+        logger.error("AI function disabled: REDIS_URL not configured")
+        await callback.answer("⚠️ AI-функция временно недоступна. Попробуйте позже.", show_alert=True)
+        return
 
-        quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
-        count = await _redis.incr(quota_key)
-        if count == 1:
-            await _redis.expire(quota_key, 86400)
-        if count > settings.AI_DAILY_LIMIT:
-            await _redis.delete(lock_key)
-            await callback.answer(
-                f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра.",
-                show_alert=True,
-            )
-            return
-    else:
-        lock_key = None
+    redis_client = aioredis.from_url(settings.REDIS_URL)
+    lock_key = f"ai_lock:{user_id}"
+
+    try:
+        acquired = await asyncio.wait_for(
+            redis_client.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL),
+            timeout=2.0,
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.error("Redis unavailable for AI quota: %s", type(e).__name__)
+        await callback.answer("⚠️ AI-функция временно недоступна. Попробуйте позже.", show_alert=True)
+        await redis_client.aclose()
+        return
+
+    if not acquired:
+        await callback.answer("⏳ Подождите, ваш запрос уже обрабатывается.", show_alert=True)
+        await redis_client.aclose()
+        return
+
+    quota_key = f"ai_daily:{user_id}:{date.today().isoformat()}"
+    count = await redis_client.incr(quota_key)
+    if count == 1:
+        await redis_client.expire(quota_key, 86400)
+    if count > settings.AI_DAILY_LIMIT:
+        await redis_client.delete(lock_key)
+        await callback.answer(
+            f"⚠️ Достигнут дневной лимит ({settings.AI_DAILY_LIMIT} запросов к ИИ). Попробуйте завтра.",
+            show_alert=True,
+        )
+        await redis_client.aclose()
+        return
 
     # 1. Просим подождать
     await callback.message.edit_text("🎲 <b>Придумываю ситуацию...</b>\nЭто займет пару секунд.")
@@ -281,5 +297,8 @@ async def generate_task_handler(callback: types.CallbackQuery, state: FSMContext
             ).as_markup()
         )
     finally:
-        if _redis is not None and lock_key is not None:
-            await _redis.delete(lock_key)
+        try:
+            await redis_client.delete(lock_key)
+            await redis_client.aclose()
+        except Exception:
+            pass
