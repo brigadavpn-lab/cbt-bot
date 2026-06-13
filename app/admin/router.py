@@ -2,6 +2,7 @@ import asyncio
 import json
 import secrets as py_secrets
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -108,6 +109,8 @@ async def users_page(
     active_only: int = 0,
     sort: str = "",
     order: str = "desc",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
 ):
     _SORT_COLS = {
         "xp": "u.xp",
@@ -116,6 +119,17 @@ async def users_page(
     }
     sort_col = _SORT_COLS.get(sort, "u.last_active_at")
     sort_dir = "ASC" if order == "asc" else "DESC"
+
+    where_clauses = []
+    params: dict = {}
+    if date_from:
+        where_clauses.append("u.created_at >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        where_clauses.append("u.created_at < :date_to_excl")
+        params["date_to_excl"] = date_to + " 23:59:59"
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
     having_clause = "HAVING (u.xp > 0 OR COUNT(t.id) > 0)" if active_only else ""
 
     query = (
@@ -126,13 +140,14 @@ async def users_page(
         "       u.is_blocked "
         "FROM users u "
         "LEFT JOIN token_usage t ON t.user_id = u.id "
+        f"{where_sql} "
         "GROUP BY u.id "
         f"{having_clause} "
         f"ORDER BY {sort_col} {sort_dir} NULLS LAST"
     )
 
     async with AsyncSessionLocal() as s:
-        rows = (await s.execute(text(query))).fetchall()
+        rows = (await s.execute(text(query), params)).fetchall()
 
     now = datetime.now(timezone.utc)
 
@@ -170,6 +185,8 @@ async def users_page(
         "active_only": active_only,
         "sort": sort,
         "order": order,
+        "date_from": date_from or "",
+        "date_to": date_to or "",
     })
     response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
@@ -190,7 +207,9 @@ async def block_user(
         if user:
             user.is_blocked = True
             await session.commit()
-    return RedirectResponse("/admin/users", status_code=303)
+    qs = str(request.url.query)
+    redirect_url = f"/admin/users?{qs}" if qs else "/admin/users"
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 @router.post("/users/{user_id}/unblock", response_class=HTMLResponse)
@@ -208,7 +227,9 @@ async def unblock_user(
         if user:
             user.is_blocked = False
             await session.commit()
-    return RedirectResponse("/admin/users", status_code=303)
+    qs = str(request.url.query)
+    redirect_url = f"/admin/users?{qs}" if qs else "/admin/users"
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 # ─── Токены ─────────────────────────────────────────────────────────────────
