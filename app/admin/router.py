@@ -3,6 +3,8 @@ import json
 import secrets as py_secrets
 from datetime import datetime, timezone, timedelta
 
+from typing import Optional
+
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -102,9 +104,14 @@ async def dashboard(request: Request, admin: str = Depends(verify_admin)):
 # ─── Пользователи ───────────────────────────────────────────────────────────
 
 @router.get("/users", response_class=HTMLResponse)
-async def users_page(request: Request, admin: str = Depends(verify_admin)):
+async def users_page(
+    request: Request,
+    admin: str = Depends(verify_admin),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
     async with AsyncSessionLocal() as s:
-        rows = (await s.execute(text(
+        sql = (
             "SELECT u.id, u.tg_id, u.full_name, u.level, u.xp, u.streak, "
             "       u.created_at, u.last_active_at, "
             "       COUNT(t.id) as total_requests, "
@@ -112,9 +119,19 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
             "       u.is_blocked "
             "FROM users u "
             "LEFT JOIN token_usage t ON t.user_id = u.id "
-            "GROUP BY u.id "
-            "ORDER BY u.last_active_at DESC NULLS LAST"
-        ))).fetchall()
+        )
+        params: dict = {}
+        where_clauses = []
+        if date_from:
+            where_clauses.append("u.last_active_at >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            where_clauses.append("u.last_active_at < (:date_to::date + interval '1 day')")
+            params["date_to"] = date_to
+        if where_clauses:
+            sql += "WHERE " + " AND ".join(where_clauses) + " "
+        sql += "GROUP BY u.id ORDER BY u.last_active_at DESC NULLS LAST"
+        rows = (await s.execute(text(sql), params)).fetchall()
 
     now = datetime.now(timezone.utc)
 
@@ -149,6 +166,9 @@ async def users_page(request: Request, admin: str = Depends(verify_admin)):
         "active_page": "users",
         "users": users,
         "csrf_token": csrf_token,
+        "date_from": date_from or "",
+        "date_to": date_to or "",
+        "total_count": len(users),
     })
     response.set_cookie("csrf_token", csrf_token, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
@@ -161,6 +181,8 @@ async def block_user(
     csrf_token: str = Form(...),
     csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
     admin: str = Depends(verify_admin),
+    date_from: str = Form(default=""),
+    date_to: str = Form(default=""),
 ):
     if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
         raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
@@ -169,7 +191,11 @@ async def block_user(
         if user:
             user.is_blocked = True
             await session.commit()
-    return RedirectResponse("/admin/users", status_code=303)
+    redirect_url = "/admin/users"
+    qs = "&".join(f"{k}={v}" for k, v in [("date_from", date_from), ("date_to", date_to)] if v)
+    if qs:
+        redirect_url += "?" + qs
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 @router.post("/users/{user_id}/unblock", response_class=HTMLResponse)
@@ -179,6 +205,8 @@ async def unblock_user(
     csrf_token: str = Form(...),
     csrf_cookie: str | None = Cookie(default=None, alias="csrf_token"),
     admin: str = Depends(verify_admin),
+    date_from: str = Form(default=""),
+    date_to: str = Form(default=""),
 ):
     if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
         raise HTTPException(status_code=403, detail="CSRF-токен недействителен")
@@ -187,7 +215,11 @@ async def unblock_user(
         if user:
             user.is_blocked = False
             await session.commit()
-    return RedirectResponse("/admin/users", status_code=303)
+    redirect_url = "/admin/users"
+    qs = "&".join(f"{k}={v}" for k, v in [("date_from", date_from), ("date_to", date_to)] if v)
+    if qs:
+        redirect_url += "?" + qs
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 # ─── Токены ─────────────────────────────────────────────────────────────────
