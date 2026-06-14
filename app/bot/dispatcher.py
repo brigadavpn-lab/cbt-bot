@@ -10,6 +10,7 @@ from app.bot.handlers import (
     base,
     broadcast,
     check_answer,
+    distortions_pdf,
     feedback,
     my_situation,
     progress,
@@ -57,6 +58,7 @@ dp.include_router(progress.router)      # 4. Прогресс
 dp.include_router(my_situation.router)  # 5. Своя ситуация (Claude)
 dp.include_router(ai_generator.router)  # 6. Генератор задач (Claude)
 dp.include_router(test_mode.router)     # 7. Режим теста
+dp.include_router(distortions_pdf.router)  # 8. PDF список искажений
 
 
 # --- STARTUP / SHUTDOWN: уведомление админа + регистрация команд ---
