@@ -1,5 +1,10 @@
+import glob
 import logging
-from datetime import date
+import os
+import subprocess
+import time
+import urllib.parse
+from datetime import date, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -14,6 +19,9 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 
 PRICE_INPUT_PER_TOKEN = 0.000003   # $3 за 1M input токенов
 PRICE_OUTPUT_PER_TOKEN = 0.000015  # $15 за 1M output токенов
+
+BACKUP_DIR = '/root/backups/cbt-bot'
+BACKUP_RETENTION_DAYS = 7
 
 
 async def send_daily_report():
@@ -100,12 +108,93 @@ async def check_monthly_spend():
     await redis_client.aclose()
 
 
+def _cleanup_old_backups():
+    cutoff = time.time() - BACKUP_RETENTION_DAYS * 86400
+    removed = 0
+    for f in glob.glob(f'{BACKUP_DIR}/cbt_db_*.sql.gz'):
+        if os.path.getmtime(f) < cutoff:
+            os.remove(f)
+            removed += 1
+            logger.info('backup_database: removed old backup %s', f)
+    if removed:
+        logger.info('backup_database: cleaned up %d old backups', removed)
+
+
+async def backup_database():
+    """Еженедельный бэкап PostgreSQL. Воскресенье 20:00 UTC (23:00 МСК)."""
+    logger.info('backup_database: starting weekly backup')
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+
+    # DATABASE_URL — str, не SecretStr
+    parsed = urllib.parse.urlparse(settings.DATABASE_URL.replace('+asyncpg', ''))
+    pg_user = parsed.username
+    pg_dbname = parsed.path.lstrip('/')
+
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
+    backup_file = f'{BACKUP_DIR}/cbt_db_{timestamp}.sql.gz'
+
+    try:
+        with open(backup_file, 'wb') as f:
+            dump_proc = subprocess.Popen(
+                ['docker', 'exec', 'cbt-bot-db-1',
+                 'pg_dump', '-U', pg_user, '-d', pg_dbname],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            gzip_proc = subprocess.Popen(
+                ['gzip', '-c'],
+                stdin=dump_proc.stdout,
+                stdout=f,
+                stderr=subprocess.PIPE,
+            )
+            dump_proc.stdout.close()
+            gzip_proc.communicate()
+            dump_proc.wait()
+
+        if dump_proc.returncode != 0:
+            logger.error('backup_database: pg_dump failed (rc=%d), removing partial file',
+                         dump_proc.returncode)
+            os.remove(backup_file)
+            return
+
+        size_kb = os.path.getsize(backup_file) // 1024
+        logger.info('backup_database: created %s (%d KB)', backup_file, size_kb)
+        _cleanup_old_backups()
+
+        if settings.ADMIN_TG_ID:
+            from app.main import bot
+            await bot.send_message(
+                settings.ADMIN_TG_ID,
+                f'✅ <b>Еженедельный бэкап выполнен</b>\n\n'
+                f'📁 Файл: <code>{os.path.basename(backup_file)}</code>\n'
+                f'📦 Размер: {size_kb} KB',
+                parse_mode='HTML',
+            )
+
+    except Exception as e:
+        logger.error('backup_database: unexpected error: %s', type(e).__name__)
+        if os.path.exists(backup_file):
+            os.remove(backup_file)
+        if settings.ADMIN_TG_ID:
+            from app.main import bot
+            try:
+                await bot.send_message(
+                    settings.ADMIN_TG_ID,
+                    f'❌ <b>Ошибка бэкапа!</b>\n{type(e).__name__}',
+                    parse_mode='HTML',
+                )
+            except Exception:
+                pass
+
+
 def setup_scheduler():
     scheduler.add_job(send_daily_report, CronTrigger(hour=19, minute=0))
     scheduler.add_job(check_monthly_spend, CronTrigger(hour="*/6", minute=0))
+    scheduler.add_job(backup_database, CronTrigger(day_of_week='sun', hour=20, minute=0))
     scheduler.start()
     logger.info("Scheduler started: daily report at 19:00 UTC (22:00 MSK)")
     logger.info("Scheduler: spend check every 6 hours")
+    logger.info("Scheduler: weekly backup every Sunday at 20:00 UTC (23:00 MSK)")
 
 
 def shutdown_scheduler():
