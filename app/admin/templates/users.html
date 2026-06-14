@@ -2,6 +2,34 @@
 {% block content %}
 <h1>Пользователи <span style="font-size:16px;color:var(--dark-platinum);font-weight:normal">всего: {{ users|length }}</span></h1>
 
+{% macro sort_th(label, col) %}
+  {% if sort == col %}
+    {% set next_order = 'asc' if order == 'desc' else 'desc' %}
+    {% set arrow = ' ↑' if order == 'asc' else ' ↓' %}
+  {% else %}
+    {% set next_order = 'desc' %}
+    {% set arrow = '' %}
+  {% endif %}
+  <th><a href="/admin/users?sort={{ col }}&order={{ next_order }}{% if active_only %}&active_only=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" style="color:inherit;text-decoration:none;white-space:nowrap">{{ label }}{{ arrow }}</a></th>
+{% endmacro %}
+
+<form method="get" action="/admin/users" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  {% if sort %}<input type="hidden" name="order" value="{{ order }}">{% endif %}
+  <label style="display:flex;align-items:center;gap:4px;font-size:13px">
+    С: <input type="date" name="date_from" value="{{ date_from }}" style="padding:4px 6px;border-radius:4px;border:1px solid var(--dark-platinum);background:var(--dark-card);color:inherit;font-size:13px">
+  </label>
+  <label style="display:flex;align-items:center;gap:4px;font-size:13px">
+    По: <input type="date" name="date_to" value="{{ date_to }}" style="padding:4px 6px;border-radius:4px;border:1px solid var(--dark-platinum);background:var(--dark-card);color:inherit;font-size:13px">
+  </label>
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+    <input type="checkbox" name="active_only" value="1" {% if active_only %}checked{% endif %} onchange="this.form.submit()">
+    Только активные
+  </label>
+  <button type="submit" style="padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:var(--dark-accent);color:#fff;font-size:13px">Применить</button>
+  <a href="/admin/users" style="font-size:13px;color:var(--dark-platinum)">Сбросить</a>
+</form>
+
 <div class="card" style="padding:0;overflow:hidden">
     <table>
         <thead>
@@ -10,12 +38,12 @@
                 <th>Имя</th>
                 <th>Telegram ID</th>
                 <th>Уровень</th>
-                <th>XP</th>
+                {{ sort_th('XP', 'xp') }}
                 <th>Серия</th>
                 <th>Зарегистрирован</th>
                 <th>Последняя активность</th>
-                <th>Запросов к ИИ</th>
-                <th>Токенов</th>
+                {{ sort_th('Запросов к ИИ', 'requests') }}
+                {{ sort_th('Токенов', 'tokens') }}
                 <th>Статус</th>
             </tr>
         </thead>
@@ -51,16 +79,21 @@
                 <td>{{ u.total_requests }}</td>
                 <td>{{ "{:,}".format(u.total_tokens | int) }}</td>
                 <td>
+                    {% set qs = '?sort=' ~ sort ~ '&order=' ~ order ~ ('&active_only=1' if active_only else '') ~ ('&date_from=' ~ date_from if date_from else '') ~ ('&date_to=' ~ date_to if date_to else '') %}
                     {% if u.is_blocked %}
-                    <form method="post" action="/admin/users/{{ u.id }}/unblock">
+                    <form method="post" action="/admin/users/{{ u.id }}/unblock{{ qs }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="date_from" value="{{ date_from }}">
+                        <input type="hidden" name="date_to" value="{{ date_to }}">
                         <button type="submit" style="background:#00C851;color:#000;border:none;padding:4px 10px;cursor:pointer;border-radius:4px;font-size:12px;">
                             ✅ Разблокировать
                         </button>
                     </form>
                     {% else %}
-                    <form method="post" action="/admin/users/{{ u.id }}/block">
+                    <form method="post" action="/admin/users/{{ u.id }}/block{{ qs }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="date_from" value="{{ date_from }}">
+                        <input type="hidden" name="date_to" value="{{ date_to }}">
                         <button type="submit" style="background:#FF4444;color:#fff;border:none;padding:4px 10px;cursor:pointer;border-radius:4px;font-size:12px;">
                             🚫 Заблокировать
                         </button>
