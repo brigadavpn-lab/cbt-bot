@@ -20,7 +20,7 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 PRICE_INPUT_PER_TOKEN = 0.000003   # $3 за 1M input токенов
 PRICE_OUTPUT_PER_TOKEN = 0.000015  # $15 за 1M output токенов
 
-BACKUP_DIR = '/root/backups/cbt-bot'
+BACKUP_DIR = '/app/backups'
 BACKUP_RETENTION_DAYS = 7
 
 
@@ -136,10 +136,15 @@ async def backup_database():
     try:
         with open(backup_file, 'wb') as f:
             dump_proc = subprocess.Popen(
-                ['docker', 'exec', 'cbt-bot-db-1',
-                 'pg_dump', '-U', pg_user, '-d', pg_dbname],
+                ['pg_dump',
+                 '-h', parsed.hostname,
+                 '-p', str(parsed.port or 5432),
+                 '-U', pg_user,
+                 '-d', pg_dbname,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env={**os.environ, 'PGPASSWORD': parsed.password or ''},
             )
             gzip_proc = subprocess.Popen(
                 ['gzip', '-c'],
