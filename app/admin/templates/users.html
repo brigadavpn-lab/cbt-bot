@@ -1,6 +1,39 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Пользователи <span style="font-size:16px;color:var(--dark-platinum);font-weight:normal">всего: {{ users|length }}</span></h1>
+<h1>Пользователи <span style="font-size:16px;color:var(--dark-platinum);font-weight:normal">всего: {{ total_count }}</span></h1>
+
+<!-- Форма фильтрации по дате (GET, без CSRF) -->
+<form method="get" action="/admin/users" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px;padding:16px;background:#1A1A1A;border:1px solid #D4AF3733;border-radius:8px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="color:#A0A0A0;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Активны с</label>
+        <input type="date" name="date_from" value="{{ date_from }}"
+               style="background:#0D0D0D;color:#E8E8E8;border:1px solid #D4AF37;padding:8px 12px;border-radius:4px;font-size:14px;">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="color:#A0A0A0;font-size:12px;text-transform:uppercase;letter-spacing:1px;">По</label>
+        <input type="date" name="date_to" value="{{ date_to }}"
+               style="background:#0D0D0D;color:#E8E8E8;border:1px solid #D4AF37;padding:8px 12px;border-radius:4px;font-size:14px;">
+    </div>
+    <button type="submit"
+            style="background:#D4AF37;color:#0D0D0D;border:none;padding:8px 20px;border-radius:4px;font-weight:bold;cursor:pointer;font-size:14px;">
+        🔍 Показать
+    </button>
+    {% if date_from or date_to %}
+    <a href="/admin/users"
+       style="color:#A0A0A0;text-decoration:none;font-size:14px;padding:8px 12px;">✕ Сбросить</a>
+    {% endif %}
+</form>
+
+<!-- Счётчик результатов -->
+<p style="color:#A0A0A0;font-size:13px;margin-bottom:12px;">
+    {% if date_from or date_to %}
+        Найдено: <b style="color:#D4AF37;">{{ total_count }}</b> пользователей
+        {% if date_from %} с {{ date_from }}{% endif %}
+        {% if date_to %} по {{ date_to }}{% endif %}
+    {% else %}
+        Всего пользователей: <b style="color:#D4AF37;">{{ total_count }}</b>
+    {% endif %}
+</p>
 
 {% macro sort_th(label, col) %}
   {% if sort == col %}
