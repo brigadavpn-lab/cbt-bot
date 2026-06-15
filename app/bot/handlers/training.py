@@ -31,16 +31,17 @@ async def start_training_handler(callback: types.CallbackQuery, state: FSMContex
     task_data = task.payload
 
     # Сохраняем task_id в FSM для защиты от повторного ответа
+    await state.clear()
     await state.update_data(current_task_id=task.id, answer_accepted=False)
 
     builder = InlineKeyboardBuilder()
-    
+
     # Создаем кнопки для каждого варианта ответа
     # В callback_data мы прячем ID задачи и номер ответа, чтобы потом проверить
     # Пример: answer:5:0 (Задача №5, Ответ №0)
     for index, option_text in enumerate(task_data["options"]):
         builder.button(
-            text=option_text, 
+            text=option_text,
             callback_data=f"answer:{task.id}:{index}"
         )
 # --- ДОБАВЛЕНА КНОПКА НАЗАД ---
@@ -49,7 +50,7 @@ async def start_training_handler(callback: types.CallbackQuery, state: FSMContex
 
     # Выстраиваем кнопки в столбик
     builder.adjust(1)
-    
+
     # 5. Формируем текст сообщения
     text = (
         f"<b>Ситуация:</b>\n{task_data['situation']}\n\n"
@@ -64,6 +65,6 @@ async def start_training_handler(callback: types.CallbackQuery, state: FSMContex
     except Exception:
         # Если вдруг старое сообщение удалить нельзя, шлем новое
         await callback.message.answer(text, reply_markup=builder.as_markup())
-    
+
     # Обязательно отвечаем телеграму, что кнопка сработала (чтобы часики не крутились)
     await callback.answer()
