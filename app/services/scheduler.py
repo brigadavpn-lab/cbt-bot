@@ -11,7 +11,9 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.db.models import ReactivationCampaign
 from app.db.session import AsyncSessionLocal
+from app.services.reactivation import send_reactivation_campaign
 
 logger = logging.getLogger(__name__)
 
@@ -192,14 +194,41 @@ async def backup_database():
                 pass
 
 
+async def run_scheduled_reactivations():
+    """Каждый час проверяет кампании с расписанием на текущий час."""
+    from datetime import datetime
+    from sqlalchemy import select
+
+    now = datetime.utcnow()
+    current_day = now.strftime('%a').lower()  # 'mon','tue',...
+    current_hour = now.hour
+
+    async with AsyncSessionLocal() as s:
+        campaigns = (await s.execute(
+            select(ReactivationCampaign).where(
+                ReactivationCampaign.is_active == True,
+                ReactivationCampaign.schedule_day == current_day,
+                ReactivationCampaign.schedule_hour == current_hour,
+            )
+        )).scalars().all()
+
+    for campaign in campaigns:
+        logger.info('scheduler: reactivation campaign %d (%s)', campaign.id, campaign.name)
+        result = await send_reactivation_campaign(campaign.id)
+        logger.info('scheduler: campaign %d: sent=%d errors=%d',
+                    campaign.id, result['sent'], result['errors'])
+
+
 def setup_scheduler():
     scheduler.add_job(send_daily_report, CronTrigger(hour=19, minute=0))
     scheduler.add_job(check_monthly_spend, CronTrigger(hour="*/6", minute=0))
     scheduler.add_job(backup_database, CronTrigger(day_of_week='sun', hour=20, minute=0))
+    scheduler.add_job(run_scheduled_reactivations, CronTrigger(minute=0))
     scheduler.start()
     logger.info("Scheduler started: daily report at 19:00 UTC (22:00 MSK)")
     logger.info("Scheduler: spend check every 6 hours")
     logger.info("Scheduler: weekly backup every Sunday at 20:00 UTC (23:00 MSK)")
+    logger.info("Scheduler: reactivation check every hour at :00")
 
 
 def shutdown_scheduler():

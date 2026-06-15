@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Реактивационные рассылки</h1>
+
+{% if result_sent > 0 or result_errors > 0 %}
+<div class="card" style="margin-bottom:24px;border-color:{{ 'var(--green)' if result_sent > 0 else 'var(--red)' }}">
+    <div style="font-size:18px;font-weight:bold;color:{{ 'var(--green)' if result_sent > 0 else 'var(--red)' }};margin-bottom:8px">
+        {% if result_sent > 0 %}✅ Рассылка завершена{% else %}❌ Рассылка не выполнена{% endif %}
+        {% if result_campaign %} — {{ result_campaign }}{% endif %}
+    </div>
+    <div style="font-size:14px;color:var(--platinum)">
+        Отправлено: <strong>{{ result_sent }}</strong> · Ошибок: <strong>{{ result_errors }}</strong>
+    </div>
+</div>
+{% endif %}
+
+<!-- Таблица кампаний -->
+{% if campaigns %}
+<div class="card" style="margin-bottom:32px;padding:0;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse">
+        <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+                <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--dark-platinum);font-weight:500">Название</th>
+                <th style="padding:12px 16px;text-align:center;font-size:13px;color:var(--dark-platinum);font-weight:500">Дней</th>
+                <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--dark-platinum);font-weight:500">Расписание</th>
+                <th style="padding:12px 16px;text-align:center;font-size:13px;color:var(--dark-platinum);font-weight:500">Получателей</th>
+                <th style="padding:12px 16px;text-align:center;font-size:13px;color:var(--dark-platinum);font-weight:500">Уже отправлено</th>
+                <th style="padding:12px 16px;text-align:center;font-size:13px;color:var(--dark-platinum);font-weight:500">Статус</th>
+                <th style="padding:12px 16px;text-align:center;font-size:13px;color:var(--dark-platinum);font-weight:500">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in campaigns %}
+            <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:12px 16px;font-size:14px">{{ c.name }}</td>
+                <td style="padding:12px 16px;text-align:center;font-size:14px">{{ c.days_inactive }}</td>
+                <td style="padding:12px 16px;font-size:13px;color:var(--dark-platinum)">
+                    {% if c.schedule_day %}
+                        {{ days_map.get(c.schedule_day, c.schedule_day) }},
+                        {{ '%02d'|format(c.schedule_hour or 0) }}:{{ '%02d'|format(c.schedule_minute or 0) }} UTC
+                    {% else %}
+                        Только вручную
+                    {% endif %}
+                </td>
+                <td style="padding:12px 16px;text-align:center;font-size:14px;color:var(--gold)">
+                    {{ stats[c.id]['eligible'] }}
+                </td>
+                <td style="padding:12px 16px;text-align:center;font-size:14px">
+                    {{ stats[c.id]['sent'] }}
+                </td>
+                <td style="padding:12px 16px;text-align:center">
+                    {% if c.is_active %}
+                        <span style="color:var(--green);font-size:13px">● Активна</span>
+                    {% else %}
+                        <span style="color:var(--dark-platinum);font-size:13px">● Выкл</span>
+                    {% endif %}
+                </td>
+                <td style="padding:12px 16px;text-align:center">
+                    <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+                        <!-- Отправить сейчас -->
+                        <form method="post" action="/admin/reactivation/{{ c.id }}/send" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn" style="font-size:12px;padding:5px 10px"
+                                    onclick="return confirm('Отправить кампанию «{{ c.name }}» прямо сейчас?')">
+                                ▶ Отправить
+                            </button>
+                        </form>
+                        <!-- Вкл/Выкл -->
+                        <form method="post" action="/admin/reactivation/{{ c.id }}/toggle" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn" style="font-size:12px;padding:5px 10px;background:transparent;border:1px solid var(--border);color:var(--dark-platinum)">
+                                {% if c.is_active %}⏸ Выкл{% else %}▶ Вкл{% endif %}
+                            </button>
+                        </form>
+                        <!-- Редактировать (раскрыть форму) -->
+                        <button type="button" class="btn" style="font-size:12px;padding:5px 10px;background:transparent;border:1px solid var(--border);color:var(--gold)"
+                                onclick="toggleEdit('edit-{{ c.id }}')">
+                            ✏ Ред.
+                        </button>
+                        <!-- Удалить -->
+                        <form method="post" action="/admin/reactivation/{{ c.id }}/delete" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn" style="font-size:12px;padding:5px 10px;background:transparent;border:1px solid var(--red);color:var(--red)"
+                                    onclick="return confirm('Удалить кампанию «{{ c.name }}»?')">
+                                🗑 Удалить
+                            </button>
+                        </form>
+                    </div>
+                    <!-- Форма редактирования (скрытая) -->
+                    <div id="edit-{{ c.id }}" style="display:none;margin-top:10px;text-align:left;background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border)">
+                        <form method="post" action="/admin/reactivation/{{ c.id }}/edit">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div style="margin-bottom:8px">
+                                <input type="text" name="name" value="{{ c.name }}" placeholder="Название" required style="width:100%">
+                            </div>
+                            <div style="display:flex;gap:8px;margin-bottom:8px">
+                                <input type="number" name="days_inactive" value="{{ c.days_inactive }}" min="1" placeholder="Дней" required style="width:80px">
+                                <select name="schedule_day" style="flex:1">
+                                    <option value="">Только вручную</option>
+                                    <option value="mon" {{ 'selected' if c.schedule_day == 'mon' else '' }}>Понедельник</option>
+                                    <option value="tue" {{ 'selected' if c.schedule_day == 'tue' else '' }}>Вторник</option>
+                                    <option value="wed" {{ 'selected' if c.schedule_day == 'wed' else '' }}>Среда</option>
+                                    <option value="thu" {{ 'selected' if c.schedule_day == 'thu' else '' }}>Четверг</option>
+                                    <option value="fri" {{ 'selected' if c.schedule_day == 'fri' else '' }}>Пятница</option>
+                                    <option value="sat" {{ 'selected' if c.schedule_day == 'sat' else '' }}>Суббота</option>
+                                    <option value="sun" {{ 'selected' if c.schedule_day == 'sun' else '' }}>Воскресенье</option>
+                                </select>
+                                <input type="number" name="schedule_hour" value="{{ c.schedule_hour if c.schedule_hour is not none else '' }}" min="0" max="23" placeholder="Час UTC" style="width:80px">
+                                <input type="number" name="schedule_minute" value="{{ c.schedule_minute or 0 }}" min="0" max="59" style="width:60px">
+                            </div>
+                            <div style="margin-bottom:8px">
+                                <textarea name="message_text" rows="3" style="width:100%" placeholder="Текст сообщения">{{ c.message_text }}</textarea>
+                            </div>
+                            <button type="submit" class="btn" style="font-size:12px;padding:5px 12px">💾 Сохранить</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:32px;text-align:center;color:var(--dark-platinum)">
+    Кампаний пока нет. Создайте первую ниже.
+</div>
+{% endif %}
+
+<!-- Форма создания -->
+<div class="card" style="max-width:680px">
+    <h2 style="font-size:16px;margin-bottom:20px;color:var(--gold)">➕ Создать кампанию</h2>
+    <form method="post" action="/admin/reactivation/create">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div style="margin-bottom:14px">
+            <label style="display:block;font-size:13px;color:var(--dark-platinum);margin-bottom:6px">Название</label>
+            <input type="text" name="name" placeholder="Например: Неактивные 7 дней" required>
+        </div>
+
+        <div style="margin-bottom:14px">
+            <label style="display:block;font-size:13px;color:var(--dark-platinum);margin-bottom:6px">Дней без активности</label>
+            <input type="number" name="days_inactive" min="1" placeholder="7" required style="width:120px">
+        </div>
+
+        <div style="margin-bottom:14px">
+            <label style="display:block;font-size:13px;color:var(--dark-platinum);margin-bottom:6px">Текст сообщения</label>
+            <textarea name="message_text" rows="5"
+                placeholder="Привет, {name}! Используй {name} для имени пользователя."></textarea>
+            <div style="font-size:12px;color:var(--dark-platinum);margin-top:4px">
+                {name} заменяется на имя пользователя или «Пользователь»
+            </div>
+        </div>
+
+        <div style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;color:var(--dark-platinum);margin-bottom:8px">Расписание (необязательно)</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <select name="schedule_day">
+                    <option value="">Только вручную</option>
+                    <option value="mon">Понедельник</option>
+                    <option value="tue">Вторник</option>
+                    <option value="wed">Среда</option>
+                    <option value="thu">Четверг</option>
+                    <option value="fri">Пятница</option>
+                    <option value="sat">Суббота</option>
+                    <option value="sun">Воскресенье</option>
+                </select>
+                <input type="number" name="schedule_hour" min="0" max="23" placeholder="Час UTC (МСК=UTC+3)" style="width:160px">
+                <input type="number" name="schedule_minute" min="0" max="59" value="0" style="width:60px">
+            </div>
+            <div style="font-size:12px;color:var(--dark-platinum);margin-top:4px">
+                МСК = UTC+3 · Запуск ежечасно в :00
+            </div>
+        </div>
+
+        <button type="submit" class="btn">➕ Создать кампанию</button>
+    </form>
+</div>
+
+<script>
+function toggleEdit(id) {
+    var el = document.getElementById(id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

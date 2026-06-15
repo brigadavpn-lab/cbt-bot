@@ -8,11 +8,14 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import text
+from urllib.parse import quote as url_quote
+
+from sqlalchemy import func, select, text
 
 from app.admin.auth import verify_admin
-from app.db.models import Attempt, Task, TokenUsage, User
+from app.db.models import Attempt, ReactivationCampaign, ReactivationLog, Task, TokenUsage, User
 from app.db.session import AsyncSessionLocal
+from app.services.reactivation import send_reactivation_campaign
 from app.utils.html import esc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -365,3 +368,168 @@ async def broadcast_send(
     })
     response.set_cookie("csrf_token", new_csrf, httponly=True, samesite="strict", max_age=3600)
     return _add_security_headers(response)
+
+
+# ─── Реактивационные рассылки ────────────────────────────────────────────────
+
+DAYS_MAP = {'mon': 'Пн', 'tue': 'Вт', 'wed': 'Ср', 'thu': 'Чт', 'fri': 'Пт', 'sat': 'Сб', 'sun': 'Вс'}
+
+
+@router.get('/reactivation', response_class=HTMLResponse)
+async def reactivation_page(
+    request: Request,
+    admin=Depends(verify_admin),
+    result_sent: int = 0,
+    result_errors: int = 0,
+    result_campaign: str = '',
+):
+    async with AsyncSessionLocal() as s:
+        campaigns = (await s.execute(
+            select(ReactivationCampaign).order_by(ReactivationCampaign.days_inactive)
+        )).scalars().all()
+
+        stats = {}
+        for c in campaigns:
+            sent_count = (await s.execute(
+                select(func.count()).select_from(ReactivationLog)
+                .where(ReactivationLog.campaign_id == c.id)
+            )).scalar() or 0
+            eligible = (await s.execute(text(
+                'SELECT COUNT(*) FROM users u '
+                'WHERE u.is_blocked = false '
+                "AND u.last_active_at < now() - :days * interval '1 day' "
+                'AND u.id NOT IN ('
+                '  SELECT user_id FROM reactivation_log WHERE campaign_id = :cid'
+                ')'
+            ), {'days': c.days_inactive, 'cid': c.id})).scalar() or 0
+            stats[c.id] = {'sent': sent_count, 'eligible': eligible}
+
+    csrf_token = py_secrets.token_hex(32)
+    response = templates.TemplateResponse('reactivation.html', {
+        'request': request,
+        'active_page': 'reactivation',
+        'campaigns': campaigns,
+        'stats': stats,
+        'csrf_token': csrf_token,
+        'result_sent': result_sent,
+        'result_errors': result_errors,
+        'result_campaign': result_campaign,
+        'days_map': DAYS_MAP,
+    })
+    response.set_cookie('csrf_token', csrf_token, httponly=True, samesite='strict', max_age=3600)
+    return _add_security_headers(response)
+
+
+@router.post('/reactivation/create', response_class=HTMLResponse)
+async def reactivation_create(
+    request: Request,
+    name: str = Form(...),
+    days_inactive: int = Form(...),
+    message_text: str = Form(...),
+    schedule_day: str = Form(default=''),
+    schedule_hour: str = Form(default=''),
+    schedule_minute: str = Form(default='0'),
+    csrf_token: str = Form(...),
+    csrf_cookie: Optional[str] = Cookie(default=None, alias='csrf_token'),
+    admin=Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail='CSRF-токен недействителен')
+    async with AsyncSessionLocal() as s:
+        campaign = ReactivationCampaign(
+            name=esc(name),
+            days_inactive=max(1, days_inactive),
+            message_text=message_text,
+            schedule_day=schedule_day or None,
+            schedule_hour=int(schedule_hour) if schedule_hour else None,
+            schedule_minute=int(schedule_minute) if schedule_minute else 0,
+        )
+        s.add(campaign)
+        await s.commit()
+    return RedirectResponse('/admin/reactivation', status_code=303)
+
+
+@router.post('/reactivation/{campaign_id}/edit', response_class=HTMLResponse)
+async def reactivation_edit(
+    campaign_id: int,
+    request: Request,
+    name: str = Form(...),
+    days_inactive: int = Form(...),
+    message_text: str = Form(...),
+    schedule_day: str = Form(default=''),
+    schedule_hour: str = Form(default=''),
+    schedule_minute: str = Form(default='0'),
+    csrf_token: str = Form(...),
+    csrf_cookie: Optional[str] = Cookie(default=None, alias='csrf_token'),
+    admin=Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail='CSRF-токен недействителен')
+    async with AsyncSessionLocal() as s:
+        c = await s.get(ReactivationCampaign, campaign_id)
+        if c:
+            c.name = esc(name)
+            c.days_inactive = max(1, days_inactive)
+            c.message_text = message_text
+            c.schedule_day = schedule_day or None
+            c.schedule_hour = int(schedule_hour) if schedule_hour else None
+            c.schedule_minute = int(schedule_minute) if schedule_minute else 0
+            await s.commit()
+    return RedirectResponse('/admin/reactivation', status_code=303)
+
+
+@router.post('/reactivation/{campaign_id}/send', response_class=HTMLResponse)
+async def reactivation_send(
+    campaign_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    csrf_cookie: Optional[str] = Cookie(default=None, alias='csrf_token'),
+    admin=Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail='CSRF-токен недействителен')
+    async with AsyncSessionLocal() as s:
+        campaign = await s.get(ReactivationCampaign, campaign_id)
+        campaign_name = campaign.name if campaign else ''
+    result = await send_reactivation_campaign(campaign_id)
+    return RedirectResponse(
+        f'/admin/reactivation?result_sent={result["sent"]}'
+        f'&result_errors={result["errors"]}&result_campaign={url_quote(campaign_name)}',
+        status_code=303,
+    )
+
+
+@router.post('/reactivation/{campaign_id}/toggle', response_class=HTMLResponse)
+async def reactivation_toggle(
+    campaign_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    csrf_cookie: Optional[str] = Cookie(default=None, alias='csrf_token'),
+    admin=Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail='CSRF-токен недействителен')
+    async with AsyncSessionLocal() as s:
+        c = await s.get(ReactivationCampaign, campaign_id)
+        if c:
+            c.is_active = not c.is_active
+            await s.commit()
+    return RedirectResponse('/admin/reactivation', status_code=303)
+
+
+@router.post('/reactivation/{campaign_id}/delete', response_class=HTMLResponse)
+async def reactivation_delete(
+    campaign_id: int,
+    request: Request,
+    csrf_token: str = Form(...),
+    csrf_cookie: Optional[str] = Cookie(default=None, alias='csrf_token'),
+    admin=Depends(verify_admin),
+):
+    if not csrf_cookie or not py_secrets.compare_digest(csrf_token, csrf_cookie):
+        raise HTTPException(status_code=403, detail='CSRF-токен недействителен')
+    async with AsyncSessionLocal() as s:
+        c = await s.get(ReactivationCampaign, campaign_id)
+        if c:
+            await s.delete(c)
+            await s.commit()
+    return RedirectResponse('/admin/reactivation', status_code=303)

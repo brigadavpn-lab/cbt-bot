@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, JSON, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, ForeignKey, JSON, DateTime, Text, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import DeclarativeBase
 
@@ -63,3 +63,31 @@ class TokenUsage(Base):
     input_tokens = Column(Integer, nullable=False, default=0)
     output_tokens = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReactivationCampaign(Base):
+    __tablename__ = 'reactivation_campaigns'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    days_inactive = Column(Integer, nullable=False)
+    message_text = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    schedule_day = Column(String(10), nullable=True)    # mon/tue/wed/thu/fri/sat/sun
+    schedule_hour = Column(Integer, nullable=True)      # 0-23 UTC
+    schedule_minute = Column(Integer, nullable=True)    # 0-59
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class ReactivationLog(Base):
+    __tablename__ = 'reactivation_log'
+    __table_args__ = (
+        UniqueConstraint('campaign_id', 'user_id', name='uq_reactivation_campaign_user'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    campaign_id = Column(Integer, ForeignKey('reactivation_campaigns.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    sent_at = Column(DateTime(timezone=True), server_default=func.now())
+    success = Column(Boolean, default=True, nullable=False)
