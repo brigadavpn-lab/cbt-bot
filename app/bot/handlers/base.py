@@ -16,6 +16,26 @@ from app.utils.html import esc
 logger = logging.getLogger(__name__)
 router = Router()
 
+WELCOME_TEXT = (
+    "<b>CBT-Gym — тренажер для работы с автоматическими мыслями</b>\n\n"
+    "Привет, <b>{name}</b>! 👋\n\n"
+    "Ты замечал, что одна и та же ситуация вызывает у людей совершенно разные эмоции? "
+    "Все зависит от того, как мы интерпретируем происходящее, и иногда наш мозг незаметно нас подводит: "
+    "преувеличивает угрозы, делает поспешные выводы, видит все в черно-белом цвете. "
+    "Из-за этого мы можем тревожиться, злиться или расстраивается, вообщем реагировать несоразмерно истинному положению дел.\n\n"
+    "Хорошая новость: этому можно научиться противостоять. "
+    "CBT-Gym — бот, который помогает тренировать именно этот навык, распознавая автоматические мысли и когнитивные искажения в них\n\n"
+    "<b>Что можно делать в боте:</b>\n\n"
+    "🏋️ <b>Тренировка:</b> бот показывает ситуацию и мысль персонажа, ты угадываешь, где здесь ошибка мышления. 18 видов ловушек, ситуации из реальной жизни.\n\n"
+    "🎲 <b>ИИ-генератор:</b> если хочется больше заданий, ИИ придумает новую уникальную ситуацию.\n\n"
+    "🧠 <b>Разобрать свою ситуацию:</b> опиши, что тебя беспокоит. Бот найдёт ловушку мышления, объяснит почему это искажение и предложит взглянуть иначе. Твоя история нигде не сохраняется.\n\n"
+    "📝 <b>Тест:</b> 10 вопросов подряд, чтобы проверить свой прогресс.\n\n"
+    "📈 <b>Прогресс:</b> опыт, уровни, серии побед.\n\n"
+    "Бот не заменяет работу с психологом. . Но он дает возможность выработать привычку замечать, когда твои мысли искажают реальность еще до того, как эмоции захлестнули \n\n"
+    "Если есть вопросы или предложения, жми кнопку обратной связи в меню. Удачи в тренировках! 💪 \n\n"
+    "\n\n👨‍💻 Автор: @psychologist_drachev_andrei"
+)
+
 
 # Функция рисования меню (чтобы не дублировать код)
 def get_main_menu(is_admin: bool = False):
@@ -42,6 +62,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     # SELECT-then-INSERT: определяем, новый ли это пользователь
     is_new_user = False
+    is_age_confirmed = False
     async with AsyncSessionLocal() as session:
         existing = (
             await session.execute(select(User).where(User.tg_id == tg_id))
@@ -63,19 +84,29 @@ async def cmd_start(message: types.Message, state: FSMContext):
             if existing.full_name != message.from_user.full_name:
                 existing.full_name = message.from_user.full_name
             await session.commit()
+            is_age_confirmed = existing.is_age_confirmed
 
-    text = (
-        f"Привет, <b>{esc(message.from_user.full_name)}</b>! 👋\n\n"
-        "Я — <b>CBT-Gym</b>, твой персональный тренажер по работе с автоматическими мыслями.\n"
-        "Я помогаю находить когнитивные искажения — ошибки в мыслях, которые вызывают тревогу и стресс.\n\n"
-        "💪 <b>Как мы будем тренироваться?</b>\n"
-        "• <b>Генератор задач:</b> Решай уникальные кейсы от ИИ.\n"
-        "• <b>Своя ситуация:</b> Расскажи проблему, и я помогу её разобрать.\n"
-        "• <b>Прогресс:</b> Копи опыт (XP) и следи за серией побед!\n\n"
-        "С чего начнем?"
-    )
+    if not is_age_confirmed:
+        builder = InlineKeyboardBuilder()
+        builder.button(
+            text='✅ Я подтверждаю, что мне исполнилось 18 лет',
+            callback_data='confirm_age',
+        )
+        await message.answer(
+            '👋 Добро пожаловать в <b>CBT-Gym</b>!\n\n'
+            'Перед началом работы необходимо подтвердить возраст.\n\n'
+            'Нажимая кнопку ниже, вы подтверждаете, что вам исполнилось <b>18 лет</b>.',
+            parse_mode='HTML',
+            reply_markup=builder.as_markup(),
+        )
+        return
+
     is_admin = (tg_id == settings.ADMIN_TG_ID and settings.ADMIN_TG_ID != 0)
-    await message.answer(text, reply_markup=get_main_menu(is_admin=is_admin))
+    await message.answer(
+        WELCOME_TEXT.format(name=esc(message.from_user.full_name)),
+        parse_mode='HTML',
+        reply_markup=get_main_menu(is_admin=is_admin),
+    )
 
     # Уведомление админу о новом пользователе (если ADMIN_TG_ID задан и это не сам админ)
     if is_new_user and settings.ADMIN_TG_ID and tg_id != settings.ADMIN_TG_ID:
@@ -92,6 +123,26 @@ async def cmd_start(message: types.Message, state: FSMContext):
             )
         except Exception:
             logger.exception("Failed to notify admin about new user %s", tg_id)
+
+
+@router.callback_query(F.data == 'confirm_age')
+async def handle_age_confirmation(callback: types.CallbackQuery, state: FSMContext):
+    tg_id = callback.from_user.id
+    async with AsyncSessionLocal() as session:
+        user = (await session.execute(
+            select(User).where(User.tg_id == tg_id)
+        )).scalar_one_or_none()
+        if user:
+            user.is_age_confirmed = True
+            await session.commit()
+    await callback.message.delete()
+    is_admin = (tg_id == settings.ADMIN_TG_ID and settings.ADMIN_TG_ID != 0)
+    await callback.message.answer(
+        WELCOME_TEXT.format(name=esc(callback.from_user.full_name)),
+        parse_mode='HTML',
+        reply_markup=get_main_menu(is_admin=is_admin),
+    )
+    await callback.answer()
 
 
 @router.message(Command("cancel"))
