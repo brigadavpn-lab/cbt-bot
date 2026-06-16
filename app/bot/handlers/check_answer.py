@@ -116,4 +116,5 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         await callback.message.answer(text, reply_markup=builder.as_markup())
 
+    await state.update_data(answer_accepted=False)
     await callback.answer()
