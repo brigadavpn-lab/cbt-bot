@@ -32,7 +32,7 @@ async def start_training_handler(callback: types.CallbackQuery, state: FSMContex
 
     # Сохраняем task_id в FSM для защиты от повторного ответа
     await state.clear()
-    await state.update_data(current_task_id=task.id, answer_accepted=False)
+    await state.update_data(current_task_id=task.id)
 
     builder = InlineKeyboardBuilder()
 

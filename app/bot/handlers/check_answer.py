@@ -22,11 +22,6 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
     if str(task_id) != str(fsm_data.get("current_task_id")):
         await callback.answer("Это задание уже не актуально.", show_alert=True)
         return
-    if fsm_data.get("answer_accepted"):
-        await callback.answer("Ответ уже принят, немного подождите...", show_alert=True)
-        return
-    # Помечаем как принятый ДО обращения к БД (защита от параллельных нажатий)
-    await state.update_data(answer_accepted=True)
     await callback.message.edit_reply_markup(reply_markup=None)
 
     async with AsyncSessionLocal() as session:
@@ -87,7 +82,7 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            await callback.answer("Ответ уже принят, немногоподождите...", show_alert=True)
+            await callback.answer("Ты уже отвечал на этот вопрос.", show_alert=True)
             return
 
     # --- ЛОГИКА КНОПОК (ГЕНЕРАТОР или ТРЕНИРОВКА) ---
@@ -117,5 +112,4 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         await callback.message.answer(text, reply_markup=builder.as_markup())
 
-    await state.update_data(answer_accepted=False)
     await callback.answer()
