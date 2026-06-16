@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import uuid
 from datetime import date
 
 from anthropic import AsyncAnthropic
@@ -116,10 +117,11 @@ async def process_situation(message: types.Message, state: FSMContext):
 
     redis_client = aioredis.from_url(settings.REDIS_URL)
     lock_key = f"ai_lock:{user_id}"
+    lock_token = str(uuid.uuid4())
 
     try:
         acquired = await asyncio.wait_for(
-            redis_client.set(lock_key, 1, nx=True, ex=settings.AI_LOCK_TTL),
+            redis_client.set(lock_key, lock_token, nx=True, ex=settings.AI_LOCK_TTL),
             timeout=2.0,
         )
     except (asyncio.TimeoutError, Exception) as e:
@@ -198,7 +200,14 @@ async def process_situation(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Произошла ошибка при связи с ИИ. Попробуйте позже.")
     finally:
         try:
-            await redis_client.delete(lock_key)
+            lua_script = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+            await redis_client.eval(lua_script, 1, lock_key, lock_token)
             await redis_client.aclose()
         except Exception:
             pass
