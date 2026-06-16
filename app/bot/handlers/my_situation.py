@@ -76,7 +76,7 @@ async def start_my_situation(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.message(UserState.waiting_for_situation)
+@router.message(UserState.waiting_for_situation, F.text)
 async def process_situation(message: types.Message, state: FSMContext):
     if not settings.ANTHROPIC_API_KEY.get_secret_value():
         await message.answer("⚠️ Ошибка: AI-ключ не настроен.")
