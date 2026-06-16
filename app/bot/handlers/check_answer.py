@@ -27,6 +27,7 @@ async def answer_handler(callback: types.CallbackQuery, state: FSMContext):
         return
     # Помечаем как принятый ДО обращения к БД (защита от параллельных нажатий)
     await state.update_data(answer_accepted=True)
+    await callback.message.edit_reply_markup(reply_markup=None)
 
     async with AsyncSessionLocal() as session:
         # 1. Ищем задачу
