@@ -1,17 +1,67 @@
+import asyncio
+import logging
+import uuid
+
+import redis.asyncio as aioredis
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
 
+from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.db.models import Task, User
 from app.bot.states import TestState
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 # --- 1. ЗАПУСК ТЕСТА ---
 @router.callback_query(F.data == "start_test")
 async def start_test_handler(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+
+    if not settings.REDIS_URL:
+        await callback.answer("⚠️ Тест временно недоступен. Попробуйте позже.", show_alert=True)
+        return
+
+    redis_client = aioredis.from_url(settings.REDIS_URL)
+    try:
+        on_cooldown = await asyncio.wait_for(
+            redis_client.exists(f"test_cooldown:{user_id}"), timeout=2.0
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.error("Redis unavailable for test cooldown check: %s", type(e).__name__)
+        await callback.answer("⚠️ Тест временно недоступен. Попробуйте позже.", show_alert=True)
+        await redis_client.aclose()
+        return
+
+    if on_cooldown:
+        await callback.answer(
+            "⏰ Вы уже проходили тест сегодня. Тест будет снова доступен через 24 часа.",
+            show_alert=True,
+        )
+        await redis_client.aclose()
+        return
+
+    lock_token = str(uuid.uuid4())
+    lock_key = f"test_lock:{user_id}"
+    try:
+        acquired = await asyncio.wait_for(
+            redis_client.set(lock_key, lock_token, nx=True, ex=settings.TEST_SESSION_TTL),
+            timeout=2.0,
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.error("Redis unavailable for test session lock: %s", type(e).__name__)
+        await callback.answer("⚠️ Тест временно недоступен. Попробуйте позже.", show_alert=True)
+        return
+    finally:
+        await redis_client.aclose()
+
+    if not acquired:
+        await callback.answer("⏳ Подождите, тест уже запускается.", show_alert=False)
+        return
+
     # Берем 10 случайных задач из базы
     async with AsyncSessionLocal() as session:
         query = select(Task).order_by(func.random()).limit(10)
@@ -30,7 +80,8 @@ async def start_test_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(TestState.in_progress)
     
     # Запоминаем начальные данные
-    await state.update_data(task_ids=task_ids, current_index=0, correct_count=0)
+    await state.update_data(task_ids=task_ids, current_index=0, correct_count=0,
+                            test_lock_token=lock_token)
 
     # Показываем первый вопрос
     await show_next_question(callback.message, state, session)
@@ -117,21 +168,41 @@ async def finish_test(message: types.Message, state: FSMContext):
     data = await state.get_data()
     correct = data['correct_count']
     total = len(data['task_ids'])
-    
+    lock_token = data.get('test_lock_token')
+    user_id = message.chat.id
+
     # Очищаем состояние (выходим из режима теста)
     await state.clear()
-    
+
     # Начисляем опыт (50 за прохождение + 10 за каждый верный)
     total_xp = 50 + (correct * 10)
-    
+
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User).where(User.tg_id == message.chat.id))
+        result = await session.execute(select(User).where(User.tg_id == user_id))
         user = result.scalar_one_or_none()
         if user:
             user.xp += total_xp
             # Увеличиваем счетчик завершенных серий, если нужно
             # user.streak += ... (тут сложнее, пока просто XP)
             await session.commit()
+
+    if settings.REDIS_URL:
+        redis_client = aioredis.from_url(settings.REDIS_URL)
+        try:
+            await redis_client.set(
+                f"test_cooldown:{user_id}", 1, ex=settings.TEST_COOLDOWN_SECONDS
+            )
+            if lock_token:
+                lua_unlock = (
+                    'if redis.call("get", KEYS[1]) == ARGV[1] then '
+                    'return redis.call("del", KEYS[1]) '
+                    'else return 0 end'
+                )
+                await redis_client.eval(lua_unlock, 1, f"test_lock:{user_id}", lock_token)
+        except Exception as e:
+            logger.error("Redis error in finish_test: %s", type(e).__name__)
+        finally:
+            await redis_client.aclose()
 
     # Оценка результата
     percent = (correct / total) * 100

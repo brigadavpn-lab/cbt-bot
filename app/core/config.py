@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     AI_DAILY_LIMIT: int = 20
     AI_LOCK_TTL: int = 30
+    TEST_COOLDOWN_SECONDS: int = 86400
+    TEST_SESSION_TTL: int = 3600
     MAX_SITUATION_LENGTH: int = 4000
     MONTHLY_SPEND_ALERT_USD: float = 25.0
 
