@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException, Request, status
 from aiogram import Bot, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.bot.dispatcher import dp
@@ -47,6 +49,20 @@ async def lifespan(app: FastAPI):
         await bot.delete_webhook()
     await bot.session.close()
 
+class AdminCSPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        nonce = py_secrets.token_hex(16)
+        request.state.csp_nonce = nonce
+        response = await call_next(request)
+        if request.url.path.startswith("/admin") and response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Content-Security-Policy"] = (
+                f"default-src 'self'; "
+                f"script-src 'self' 'nonce-{nonce}'; "
+                "style-src 'self' 'unsafe-inline'"
+            )
+        return response
+
+
 # Создаем приложение FastAPI (docs отключены в production)
 app = FastAPI(
     lifespan=lifespan,
@@ -54,6 +70,9 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+
+app.add_middleware(AdminCSPMiddleware)
+app.mount("/admin/static", StaticFiles(directory="app/admin/static"), name="admin-static")
 
 from app.admin.router import router as admin_router
 app.include_router(admin_router)

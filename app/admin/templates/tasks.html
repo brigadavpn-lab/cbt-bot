@@ -28,7 +28,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const ctx = document.getElementById('tasksChart').getContext('2d');
 new Chart(ctx, {
     type: 'bar',
