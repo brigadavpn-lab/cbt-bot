@@ -54,7 +54,7 @@
 </div>
 {% endif %}
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const ctx = document.getElementById('tokensChart').getContext('2d');
 new Chart(ctx, {
     type: 'line',
