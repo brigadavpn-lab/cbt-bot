@@ -213,3 +213,13 @@ end
             pass
 
     await state.clear()
+
+
+@router.message(UserState.waiting_for_situation, ~F.text)
+async def process_situation_non_text(message: types.Message, state: FSMContext):
+    await message.answer(
+        "⚠️ Пожалуйста, отправьте текстовое описание ситуации.\n"
+        "Фото, голосовые и другие типы сообщений не поддерживаются.\n\n"
+        "<i>Чтобы отменить — напишите /cancel</i>",
+        parse_mode="HTML",
+    )
