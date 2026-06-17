@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from urllib.parse import quote as url_quote
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 
 from app.admin.auth import verify_admin
 from app.db.models import Attempt, ReactivationCampaign, ReactivationLog, Task, TokenUsage, User
@@ -530,6 +531,12 @@ async def reactivation_delete(
     async with AsyncSessionLocal() as s:
         c = await s.get(ReactivationCampaign, campaign_id)
         if c:
-            await s.delete(c)
-            await s.commit()
+            try:
+                await s.delete(c)
+                await s.commit()
+            except IntegrityError:
+                await s.rollback()
+                return RedirectResponse(
+                    '/admin/reactivation?error=delete_failed', status_code=303
+                )
     return RedirectResponse('/admin/reactivation', status_code=303)
