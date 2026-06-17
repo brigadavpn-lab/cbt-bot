@@ -42,6 +42,9 @@ class Task(Base):
 # Таблица попыток (Кто какую задачу решал)
 class Attempt(Base):
     __tablename__ = "attempts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "task_id", name="uq_attempts_user_task"),
+    )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
