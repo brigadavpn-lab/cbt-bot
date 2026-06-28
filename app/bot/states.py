@@ -15,7 +15,7 @@ class GenState(StatesGroup):
 
 class BroadcastState(StatesGroup):
     waiting_for_text = State()
-    waiting_for_photo = State()
+    waiting_for_media = State()
     confirm = State()
 
 
