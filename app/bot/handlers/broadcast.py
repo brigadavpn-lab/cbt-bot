@@ -32,35 +32,36 @@ async def cmd_broadcast(message: types.Message, state: FSMContext):
 @router.message(BroadcastState.waiting_for_text, F.text)
 async def receive_text(message: types.Message, state: FSMContext):
     await state.update_data(text=message.text)
-    await state.set_state(BroadcastState.waiting_for_photo)
+    await state.set_state(BroadcastState.waiting_for_media)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="✍️ Пропустить фото", callback_data="broadcast_skip_photo")
+    builder.button(text="✍️ Пропустить медиа", callback_data="broadcast_skip_photo")
     builder.button(text="❌ Отмена", callback_data="broadcast_cancel")
     builder.adjust(1)
     await message.answer(
-        "✍️ Прикрепите фото к рассылке или нажмите Пропустить",
+        "✍️ Прикрепите фото, видео, документ или GIF к рассылке, либо нажмите Пропустить",
         reply_markup=builder.as_markup(),
     )
 
 
-@router.message(BroadcastState.waiting_for_photo, F.photo)
-async def receive_photo(message: types.Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    await state.update_data(photo_id=file_id)
+@router.message(
+    BroadcastState.waiting_for_media,
+    F.photo | F.video | F.document | F.animation,
+)
+async def receive_media(message: types.Message, state: FSMContext):
+    await state.update_data(media_message_id=message.message_id)
     await show_preview(message, state)
 
 
-@router.callback_query(BroadcastState.waiting_for_photo, F.data == "broadcast_skip_photo")
-async def skip_photo(callback: types.CallbackQuery, state: FSMContext):
-    await state.update_data(photo_id=None)
+@router.callback_query(BroadcastState.waiting_for_media, F.data == "broadcast_skip_photo")
+async def skip_media(callback: types.CallbackQuery, state: FSMContext):
     await show_preview(callback, state)
 
 
 async def show_preview(event: types.Message | types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get("text", "")
-    photo_id = data.get("photo_id")
+    media_message_id = data.get("media_message_id")
 
     await state.set_state(BroadcastState.confirm)
 
@@ -76,12 +77,16 @@ async def show_preview(event: types.Message | types.CallbackQuery, state: FSMCon
     else:
         chat_id = event.message.chat.id
 
-    caption = f"✍️ Превью рассылки:\n\n{text}"
-
-    if photo_id:
-        await bot.send_photo(chat_id, photo=photo_id, caption=caption, reply_markup=markup)
+    if media_message_id:
+        await bot.copy_message(
+            chat_id=chat_id,
+            from_chat_id=chat_id,
+            message_id=media_message_id,
+            caption=f"✍️ Превью рассылки:\n\n{text}",
+            reply_markup=markup,
+        )
     else:
-        await bot.send_message(chat_id, text=caption, reply_markup=markup)
+        await bot.send_message(chat_id, text=f"✍️ Превью рассылки:\n\n{text}", reply_markup=markup)
 
     if isinstance(event, types.CallbackQuery):
         await event.answer()
@@ -91,7 +96,8 @@ async def show_preview(event: types.Message | types.CallbackQuery, state: FSMCon
 async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
     data = await state.get_data()
     text = data.get("text", "")
-    photo_id = data.get("photo_id")
+    media_message_id = data.get("media_message_id")
+    source_chat_id = callback.message.chat.id
 
     await state.clear()
 
@@ -109,8 +115,13 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
     for tg_id, full_name in users:
         personalized = text.replace("{name}", full_name or "Пользователь")
         try:
-            if photo_id:
-                await bot.send_photo(tg_id, photo=photo_id, caption=personalized)
+            if media_message_id:
+                await bot.copy_message(
+                    chat_id=tg_id,
+                    from_chat_id=source_chat_id,
+                    message_id=media_message_id,
+                    caption=personalized,
+                )
             else:
                 await bot.send_message(tg_id, text=personalized)
             sent += 1
@@ -142,7 +153,7 @@ async def confirm_broadcast(callback: types.CallbackQuery, bot: Bot, state: FSMC
 @router.callback_query(
     StateFilter(
         BroadcastState.waiting_for_text,
-        BroadcastState.waiting_for_photo,
+        BroadcastState.waiting_for_media,
         BroadcastState.confirm,
     ),
     F.data == "broadcast_cancel",
